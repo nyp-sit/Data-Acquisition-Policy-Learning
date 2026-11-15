@@ -1,0 +1,1617 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Training a VLA on SO-101</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;800&family=Literata:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a lab-manual long read. Sticky stage rail on wide screens, one column on phones.
+   Colour is information: blue = vision, plum = language, green = joint state, amber = action. */
+:root{
+  --bg:#F3F5F1; --surface:#FFFFFF; --surface-2:#E7EBE5; --ink:#16201C; --ink-2:#4B5751; --rule:#CBD2CB;
+  --accent:#0D6B74; --vision:#2D6CB0; --lang:#8A4CA0; --state:#4C8636; --action:#B9700C;
+  --bad:#B4382C; --good:#2B7A4B; --obj-red:#C8392D; --obj-blue:#2E5FC4;
+  --code-bg:#1C2421; --code-ink:#E2E9E4; --code-dim:#8FA39A;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Literata",Georgia,"Times New Roman",serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#101513; --surface:#18201D; --surface-2:#222B27; --ink:#E4EAE6; --ink-2:#A3AFA8; --rule:#34403A;
+  --accent:#4DB2BB; --vision:#6CA4E4; --lang:#C48BDB; --state:#8BC46C; --action:#EDA640;
+  --bad:#E4705F; --good:#5EC48B; --obj-red:#E2584B; --obj-blue:#5F8CEB;
+  --code-bg:#0A0E0C; --code-ink:#DDE6E0; --code-dim:#7F948A; color-scheme:dark; } }
+:root[data-theme="dark"]{
+  --bg:#101513; --surface:#18201D; --surface-2:#222B27; --ink:#E4EAE6; --ink-2:#A3AFA8; --rule:#34403A;
+  --accent:#4DB2BB; --vision:#6CA4E4; --lang:#C48BDB; --state:#8BC46C; --action:#EDA640;
+  --bad:#E4705F; --good:#5EC48B; --obj-red:#E2584B; --obj-blue:#5F8CEB;
+  --code-bg:#0A0E0C; --code-ink:#DDE6E0; --code-dim:#7F948A; color-scheme:dark; }
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.66;-webkit-font-smoothing:antialiased}
+.page{max-width:1200px;margin:0 auto;padding-block:36px 72px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;grid-template-columns:minmax(0,1fr);gap:40px}
+@media (min-width:1100px){.page{grid-template-columns:210px minmax(0,1fr)}}
+main{min-width:0;max-width:840px}
+
+/* rail */
+.rail{display:none}
+@media (min-width:1100px){
+  .rail{display:block;position:sticky;top:calc(env(safe-area-inset-top,0px) + 28px);align-self:start;font-family:var(--f-display);font-size:14px}
+}
+.rail h4{font-family:var(--f-mono);font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);margin:0 0 10px}
+.rail ol{list-style:none;margin:0 0 22px;padding:0;display:grid;gap:4px}
+.rail a{color:var(--ink-2);text-decoration:none;display:flex;gap:10px;padding:3px 0}
+.rail a:hover,.rail a:focus-visible{color:var(--accent)}
+.rail .n{font-family:var(--f-mono);font-size:12px;width:22px;color:var(--accent)}
+.toc-inline{display:block;border:1px solid var(--rule);background:var(--surface);border-radius:8px;padding:14px 16px;margin:24px 0 8px;font-family:var(--f-display);font-size:15px}
+.toc-inline ol{margin:6px 0 0;padding-left:20px;columns:2;column-gap:28px}
+.toc-inline a{color:var(--accent)}
+@media (max-width:560px){.toc-inline ol{columns:1}}
+@media (min-width:1100px){.toc-inline{display:none}}
+
+/* type */
+h1,h2,h3,h4{font-family:var(--f-display);text-wrap:balance;color:var(--ink)}
+h1{font-weight:800;font-size:clamp(2.3rem,5.4vw,3.6rem);line-height:1.02;letter-spacing:-.025em;margin:10px 0 18px}
+h2{font-weight:800;font-size:clamp(1.6rem,3.4vw,2.15rem);line-height:1.12;letter-spacing:-.015em;margin:0 0 14px}
+h3{font-weight:700;font-size:1.22rem;line-height:1.25;margin:34px 0 8px}
+h4{font-weight:600;font-size:1.02rem;margin:22px 0 6px}
+p,li{max-width:70ch}
+p{margin:0 0 14px}
+a{color:var(--accent)}
+strong{font-weight:600}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-2)}
+.lede{font-size:1.2rem;line-height:1.55;color:var(--ink);max-width:62ch}
+.muted{color:var(--ink-2)}
+.small{font-size:.9rem}
+code{font-family:var(--f-mono);font-size:.84em;background:var(--surface-2);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+pre{font-family:var(--f-mono);font-size:13.5px;line-height:1.55;background:var(--code-bg);color:var(--code-ink);padding:16px 18px;border-radius:8px;overflow-x:auto;margin:12px 0 18px;max-width:100%}
+pre code{background:none;padding:0;font-size:inherit;overflow-wrap:normal;color:inherit}
+pre .c{color:var(--code-dim)}
+i.v{font-family:var(--f-body);font-style:italic}
+
+section.part{padding-top:56px;margin-top:40px;border-top:1px solid var(--rule)}
+.part-head{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px}
+.tag{font-family:var(--f-mono);font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:var(--ink);color:var(--bg)}
+.goal{font-family:var(--f-display);font-size:1.05rem;color:var(--ink-2);margin:0 0 18px}
+.goal b{color:var(--ink)}
+
+/* stream colour keys */
+.k{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:0}
+.k-vis{background:var(--vision)} .k-lang{background:var(--lang)} .k-state{background:var(--state)} .k-act{background:var(--action)}
+.t-vis{color:var(--vision);font-weight:600} .t-lang{color:var(--lang);font-weight:600} .t-state{color:var(--state);font-weight:600} .t-act{color:var(--action);font-weight:600}
+
+/* figures */
+figure{margin:26px 0 30px}
+.fig{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:14px;overflow-x:auto}
+.fig svg{display:block;width:100%;height:auto;min-width:640px}
+.fig.narrow svg{min-width:520px}
+figcaption{font-size:.9rem;color:var(--ink-2);margin-top:8px;max-width:72ch}
+figcaption b{color:var(--ink);font-family:var(--f-display);font-weight:600}
+svg text{font-family:var(--f-display);fill:var(--ink)}
+svg .mono{font-family:var(--f-mono)}
+svg .dim{fill:var(--ink-2)}
+svg .s{font-size:12px} svg .m{font-size:14px} svg .l{font-size:16px;font-weight:600} svg .xl{font-size:19px;font-weight:800}
+svg .ln{stroke:var(--ink-2);fill:none;stroke-width:1.5}
+svg .rule{stroke:var(--rule);fill:none}
+svg .box{fill:var(--surface);stroke:var(--rule);stroke-width:1.5}
+svg .box2{fill:var(--surface-2);stroke:var(--rule)}
+svg .vis{fill:color-mix(in srgb,var(--vision) 16%,var(--surface));stroke:var(--vision);stroke-width:1.5}
+svg .lang{fill:color-mix(in srgb,var(--lang) 16%,var(--surface));stroke:var(--lang);stroke-width:1.5}
+svg .st{fill:color-mix(in srgb,var(--state) 18%,var(--surface));stroke:var(--state);stroke-width:1.5}
+svg .act{fill:color-mix(in srgb,var(--action) 18%,var(--surface));stroke:var(--action);stroke-width:1.5}
+svg .acc{fill:color-mix(in srgb,var(--accent) 12%,var(--surface));stroke:var(--accent);stroke-width:1.5}
+svg .badf{fill:color-mix(in srgb,var(--bad) 16%,var(--surface));stroke:var(--bad);stroke-width:1.5}
+svg .fv{fill:var(--vision)} svg .fl{fill:var(--lang)} svg .fs{fill:var(--state)} svg .fa{fill:var(--action)} svg .fk{fill:var(--accent)}
+svg .fred{fill:var(--obj-red)} svg .fblue{fill:var(--obj-blue)} svg .fbad{fill:var(--bad)} svg .fgood{fill:var(--good)}
+svg .sa{stroke:var(--action);fill:none;stroke-width:2} svg .sk{stroke:var(--accent);fill:none;stroke-width:2}
+svg .sbad{stroke:var(--bad);fill:none;stroke-width:2} svg .sgood{stroke:var(--good);fill:none;stroke-width:2}
+svg .tv{fill:var(--vision)} svg .tl{fill:var(--lang)} svg .ts{fill:var(--state)} svg .ta{fill:var(--action)} svg .tk{fill:var(--accent)} svg .tbad{fill:var(--bad)}
+svg .arrowhead{fill:var(--ink-2)}
+
+/* cards & callouts */
+.trio{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:20px 0}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:16px 16px 14px;min-width:0}
+.card h4{margin:0 0 4px}
+.card .eyebrow{display:block;margin-bottom:6px}
+.card dl{margin:10px 0 0;display:grid;gap:6px;font-size:.92rem}
+.card dt{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.card dd{margin:0}
+.card.hl{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+
+.note{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:14px 18px;margin:20px 0}
+.note>.label{font-family:var(--f-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:600;display:block;margin-bottom:6px}
+.note p:last-child{margin-bottom:0}
+.analogy>.label{color:var(--lang)}
+.warn{border-color:color-mix(in srgb,var(--bad) 55%,var(--rule))}
+.warn>.label{color:var(--bad)}
+
+.failure{background:color-mix(in srgb,var(--bad) 7%,var(--surface));border:1.5px solid var(--bad);border-radius:12px;padding:20px 22px;margin:30px 0}
+.failure h3{margin-top:4px;color:var(--bad)}
+.failure .eyebrow{color:var(--bad)}
+
+/* math */
+.math{font-family:var(--f-body);font-size:1.13rem;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:14px 18px;margin:14px 0 18px;overflow-x:auto;text-align:center;line-height:2}
+.math i{font-style:italic}
+.math .lbl{display:block;font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);line-height:1.4;margin-bottom:4px}
+.frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;line-height:1.3;margin:0 3px}
+.frac>span:first-child{border-bottom:1.5px solid currentColor;padding:0 4px}
+.frac>span:last-child{padding:0 4px}
+.msub{font-size:.85em}
+
+/* steps */
+ol.steps{list-style:none;counter-reset:st;padding:0;margin:16px 0 22px;display:grid;gap:14px}
+ol.steps>li{counter-increment:st;position:relative;padding-left:46px;max-width:none;min-width:0}
+ol.steps>li::before{content:counter(st);position:absolute;left:0;top:1px;width:30px;height:30px;border-radius:50%;background:var(--surface);border:1.5px solid var(--accent);color:var(--accent);font-family:var(--f-mono);font-weight:600;font-size:13px;display:grid;place-items:center}
+ol.steps>li>b:first-child{font-family:var(--f-display);font-weight:600}
+ol.steps pre{margin-top:8px}
+
+/* tables */
+.tbl{overflow-x:auto;margin:16px 0 22px;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.92rem;line-height:1.45}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--rule)}
+tr:last-child td{border-bottom:none}
+th{font-family:var(--f-mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2);font-weight:600;background:var(--surface-2);white-space:nowrap}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td.num{font-family:var(--f-mono);font-size:.86rem}
+th .nt{text-transform:none;font-family:var(--f-body);font-size:13px;font-style:italic}
+.tbl.wide table{min-width:720px}
+td b{font-family:var(--f-display);font-weight:600}
+tr.hl td{background:color-mix(in srgb,var(--accent) 9%,var(--surface))}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--rule);white-space:nowrap}
+.pill.good{color:var(--good);border-color:var(--good)} .pill.bad{color:var(--bad);border-color:var(--bad)} .pill.mid{color:var(--action);border-color:var(--action)}
+
+/* stack diagram */
+.stack{display:grid;gap:6px;margin:18px 0}
+.layer{display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;align-items:center;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:10px 14px}
+.layer .ln{font-family:var(--f-mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-2)}
+.layer .what{font-family:var(--f-display);font-size:.95rem;min-width:0}
+.layer .what code{font-size:.8em}
+.layer.top{border-color:var(--accent)}
+.layer.side{border-style:dashed}
+@media (max-width:560px){.layer{grid-template-columns:1fr;gap:2px}}
+
+/* frame record */
+.record{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:16px 0}
+.field{border-radius:8px;padding:10px 12px;border:1.5px solid var(--rule);background:var(--surface);min-width:0}
+.field .fn{font-family:var(--f-mono);font-size:11.5px;overflow-wrap:anywhere;display:block;margin-bottom:4px}
+.field .fd{font-size:.85rem;color:var(--ink-2);line-height:1.4;display:block}
+.field.vis{border-color:var(--vision)} .field.vis .fn{color:var(--vision)}
+.field.lang{border-color:var(--lang)} .field.lang .fn{color:var(--lang)}
+.field.st{border-color:var(--state)} .field.st .fn{color:var(--state)}
+.field.act{border-color:var(--action)} .field.act .fn{color:var(--action)}
+
+/* calculators */
+.calc{background:var(--surface);border:1.5px solid var(--accent);border-radius:12px;padding:18px;margin:24px 0}
+.calc h4{margin:0 0 4px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.calc h4 .eyebrow{color:var(--accent)}
+.calc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0}
+.calc label{display:grid;gap:4px;font-family:var(--f-mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2)}
+.calc input[type=number]{font-family:var(--f-mono);font-size:15px;padding:8px 10px;border:1px solid var(--rule);border-radius:6px;background:var(--bg);color:var(--ink);width:100%}
+.calc input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;border-top:1px solid var(--rule);padding-top:14px}
+.out div{min-width:0}
+.out .ov{font-family:var(--f-mono);font-size:1.3rem;font-weight:600;font-variant-numeric:tabular-nums;display:block;color:var(--ink)}
+.out .ol{font-size:.8rem;color:var(--ink-2);display:block;line-height:1.35}
+.verdict{margin:12px 0 0;font-family:var(--f-display);font-size:.95rem;padding:10px 12px;border-radius:8px;background:var(--surface-2)}
+input[type=range]{width:100%;accent-color:var(--accent)}
+
+/* hero */
+.hero{padding-bottom:8px}
+.meta-row{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0}
+.meta-row span{font-family:var(--f-mono);font-size:12px;border:1px solid var(--rule);border-radius:999px;padding:4px 10px;color:var(--ink-2);background:var(--surface)}
+.outcomes{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:22px 0 6px}
+.outcomes .card p{margin:0;font-size:.95rem}
+
+ul.tight{margin:6px 0 16px;padding-left:20px} ul.tight li{margin:3px 0}
+footer.omit{margin-top:64px;padding-top:28px;border-top:2px solid var(--ink)}
+footer.omit h2{font-size:1.4rem}
+footer.omit li{font-size:.94rem;margin:6px 0}
+.srcs{font-size:.88rem;columns:2;column-gap:28px;padding-left:18px}
+@media (max-width:640px){.srcs{columns:1}}
+.srcs li{break-inside:avoid;margin:4px 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="page">
+<nav class="rail" aria-label="Lesson contents">
+  <h4>Part A · Concepts</h4>
+  <ol>
+    <li><a href="#a1"><span class="n">A1</span>From ACT to VLA</a></li>
+    <li><a href="#a2"><span class="n">A2</span>Inside a VLA &amp; how it is built</a></li>
+    <li><a href="#a3"><span class="n">A3</span>The maths, simplified</a></li>
+  </ol>
+  <h4>Part B · The pipeline</h4>
+  <ol>
+    <li><a href="#s1"><span class="n">1</span>Prepare the rig</a></li>
+    <li><a href="#s2"><span class="n">2</span>Install the software</a></li>
+    <li><a href="#s3"><span class="n">3</span>Collect the data</a></li>
+    <li><a href="#s4"><span class="n">4</span>Train</a></li>
+    <li><a href="#s5"><span class="n">5</span>Deploy</a></li>
+    <li><a href="#s6"><span class="n">6</span>Evaluate</a></li>
+  </ol>
+  <h4>Part C · Use it</h4>
+  <ol>
+    <li><a href="#lab"><span class="n">C1</span>Lab plan</a></li>
+    <li><a href="#trouble"><span class="n">C2</span>Troubleshooting</a></li>
+    <li><a href="#gloss"><span class="n">C3</span>Glossary</a></li>
+    <li><a href="#omit"><span class="n">—</span>Omissions &amp; sources</a></li>
+  </ol>
+</nav>
+
+<main>
+<!-- ===================== HERO ===================== -->
+<header class="hero">
+  <span class="eyebrow">Specialist Diploma in Embodied AI · Data Acquisition &amp; Policy Learning · VLA lesson</span>
+  <h1>Training a VLA on SO-101</h1>
+  <p class="lede">A Vision-Language-Action model (VLA) looks through the arm's cameras, reads one sentence from you, and answers with the next 1.7 seconds of joint motion. This lesson explains how that works, what you must prepare (hardware, software, data), how to train and run it on the SO-101, and what goes wrong at every step.</p>
+  <div class="meta-row"><span>Level: beginner</span><span>Builds on: imitation learning with ACT</span><span>Hardware: SO-101 leader + follower, 2 cameras</span><span>Model used: SmolVLA (450M)</span></div>
+</header>
+
+<figure>
+  <div class="fig">
+  <svg viewBox="0 0 960 330" role="img" aria-labelledby="fh-t">
+    <title id="fh-t">A VLA takes two camera images, an instruction and the joint state, and outputs a 50-step action chunk that the SO-101 follower executes.</title>
+    <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+    <!-- inputs -->
+    <text x="20" y="20" class="mono s dim">INPUTS (one moment in time)</text>
+    <rect x="20" y="32" width="110" height="78" rx="6" class="vis"/>
+    <line x1="26" y1="88" x2="124" y2="88" class="rule"/>
+    <rect x="44" y="70" width="14" height="14" class="fred"/><rect x="80" y="70" width="14" height="14" class="fblue"/>
+    <rect x="102" y="62" width="20" height="22" fill="none" stroke="var(--ink-2)"/>
+    <text x="75" y="126" text-anchor="middle" class="s tv">front camera</text>
+    <rect x="142" y="32" width="110" height="78" rx="6" class="vis"/>
+    <path d="M168,106 L182,60 L190,60 M232,106 L218,60 L210,60" stroke="var(--ink-2)" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <rect x="190" y="74" width="20" height="20" class="fred"/>
+    <text x="197" y="126" text-anchor="middle" class="s tv">wrist camera</text>
+    <rect x="20" y="146" width="232" height="44" rx="22" class="lang"/>
+    <text x="136" y="173" text-anchor="middle" class="m tl">"Put the red cube in the bin"</text>
+    <rect x="20" y="210" width="232" height="44" rx="6" class="st"/>
+    <text x="34" y="237" class="s ts">joint state</text>
+    <g class="fs"><rect x="112" y="226" width="8" height="18"/><rect x="126" y="220" width="8" height="24"/><rect x="140" y="230" width="8" height="14"/><rect x="154" y="223" width="8" height="21"/><rect x="168" y="233" width="8" height="11"/><rect x="182" y="228" width="8" height="16"/></g>
+    <text x="200" y="240" class="s mono ts">6 nums</text>
+    <!-- arrows in -->
+    <path d="M256,72 L296,120" class="ln" marker-end="url(#ah)"/>
+    <path d="M256,168 L296,150" class="ln" marker-end="url(#ah)"/>
+    <path d="M256,232 L296,180" class="ln" marker-end="url(#ah)"/>
+    <!-- VLA box -->
+    <rect x="300" y="30" width="300" height="252" rx="10" class="acc"/>
+    <text x="450" y="56" text-anchor="middle" class="xl tk">VLA policy</text>
+    <rect x="322" y="72" width="256" height="80" rx="8" class="box"/>
+    <text x="450" y="104" text-anchor="middle" class="l">Vision-language backbone</text>
+    <text x="450" y="126" text-anchor="middle" class="s dim">"understands": which object, where, what to do</text>
+    <path d="M450,154 L450,182" class="ln" marker-end="url(#ah)"/>
+    <rect x="322" y="186" width="256" height="80" rx="8" class="act"/>
+    <text x="450" y="218" text-anchor="middle" class="l">Action expert</text>
+    <text x="450" y="240" text-anchor="middle" class="s dim">"moves": turns understanding into motion</text>
+    <path d="M604,226 L644,170" class="ln" marker-end="url(#ah)"/>
+    <!-- output chunk -->
+    <text x="652" y="20" class="mono s dim">OUTPUT (the next 50 steps)</text>
+    <rect x="652" y="32" width="290" height="180" rx="8" class="act"/>
+    <g fill="none" stroke="var(--action)" stroke-width="2">
+      <polyline points="672.0,62.0 692.9,60.1 713.8,58.4 734.7,57.3 755.6,57.0 776.5,57.6 797.4,59.1 818.3,61.4 839.2,64.0 860.1,66.3 881.0,68.0 901.9,68.7 922.8,68.1 928.0,67.8"/>
+      <polyline points="672.0,82.1 692.9,80.6 713.8,80.0 734.7,80.6 755.6,82.3 776.5,84.8 797.4,87.9 818.3,90.8 839.2,93.0 860.1,94.0 881.0,93.6 901.9,91.6 922.8,88.4 928.0,87.5"/>
+      <polyline points="672.0,105.2 692.9,105.5 713.8,106.7 734.7,108.7 755.6,111.1 776.5,113.6 797.4,115.6 818.3,116.6 839.2,116.4 860.1,115.0 881.0,112.5 901.9,109.3 922.8,106.0 928.0,105.3"/>
+      <polyline points="672.0,132.9 692.9,131.5 713.8,130.3 734.7,129.8 755.6,130.1 776.5,131.2 797.4,132.9 818.3,135.0 839.2,137.0 860.1,138.7 881.0,139.5 901.9,139.4 922.8,138.2 928.0,137.7"/>
+      <polyline points="672.0,156.1 692.9,156.8 713.8,157.8 734.7,159.0 755.6,160.1 776.5,160.9 797.4,161.2 818.3,160.9 839.2,160.0 860.1,158.6 881.0,157.1 901.9,155.6 922.8,154.4 928.0,154.2"/>
+      <polyline points="672.0,191.0 755.6,191.0 776.5,190.7 792.2,189.5 802.6,186.8 813.1,181.9 823.5,177.0 834.0,174.4 849.6,173.2 928.0,173.0"/>
+    </g>
+    <text x="660" y="228" class="s mono ta">6 joint traces × 50 steps = 300 numbers</text>
+    <text x="660" y="246" class="s dim">at 30 steps per second this is 1.67 s of motion</text>
+    <text x="928" y="186" text-anchor="end" class="s dim">gripper closes</text>
+    <!-- loop -->
+    <path d="M797,256 L797,302 L136,302 L136,262" class="ln" stroke-dasharray="5 4" marker-end="url(#ah)"/>
+    <text x="466" y="322" text-anchor="middle" class="s dim">the follower arm plays the chunk, then the cameras and joints are read again for the next one</text>
+  </svg>
+  </div>
+  <figcaption><b>Figure 1. The whole idea on one page.</b> Colours are used the same way in every figure of this lesson: <span class="t-vis">blue = vision</span>, <span class="t-lang">plum = language</span>, <span class="t-state">green = joint state</span>, <span class="t-act">amber = action</span>.</figcaption>
+</figure>
+
+<h3 style="margin-top:8px">What you will be able to do</h3>
+<div class="outcomes">
+  <div class="card"><span class="eyebrow">Explain</span><p>How a VLA turns pixels and a sentence into joint motion, and how it differs from ACT.</p></div>
+  <div class="card"><span class="eyebrow">Prepare</span><p>An SO-101 rig, a working LeRobot install and a dataset designed so that the instruction actually matters.</p></div>
+  <div class="card"><span class="eyebrow">Train &amp; run</span><p>Fine-tune SmolVLA on your episodes and run it on the real arm without stutter.</p></div>
+  <div class="card"><span class="eyebrow">Judge</span><p>Measure success honestly, test whether the robot listens, and trace each failure back to the stage that caused it.</p></div>
+</div>
+
+<div class="note"><span class="label">Before you start</span>
+<p>You should already have teleoperated the SO-101 (leader moves, follower copies) and trained an ACT policy in the imitation-learning lab. This lesson reuses those ideas: <strong>episodes</strong>, <strong>action chunks</strong>, the <strong>action queue</strong> and <strong>demonstration quality</strong>. If a word is new, check the <a href="#gloss">glossary</a>.</p></div>
+
+<div class="toc-inline"><b>Contents</b>
+<ol>
+  <li><a href="#a1">From ACT to VLA</a></li><li><a href="#a2">Inside a VLA &amp; how it is built</a></li><li><a href="#a3">The maths, simplified</a></li>
+  <li><a href="#s1">Stage 1 · Prepare the rig</a></li><li><a href="#s2">Stage 2 · Install the software</a></li><li><a href="#s3">Stage 3 · Collect the data</a></li>
+  <li><a href="#s4">Stage 4 · Train</a></li><li><a href="#s5">Stage 5 · Deploy</a></li><li><a href="#s6">Stage 6 · Evaluate</a></li>
+  <li><a href="#lab">Lab plan</a></li><li><a href="#trouble">Troubleshooting</a></li><li><a href="#gloss">Glossary</a></li>
+</ol></div>
+
+<!-- ===================== A1 ===================== -->
+<section class="part" id="a1">
+  <div class="part-head"><span class="tag">Part A1</span><span class="eyebrow">Concept</span></div>
+  <h2>From ACT to VLA: what changes</h2>
+  <p>So far in this unit you have met two ways to give the SO-101 a skill. In <strong>reinforcement learning</strong> the arm tries things in simulation and a reward score tells it how well it did. In <strong>imitation learning</strong> (ACT) you show it the task with the leader arm and it learns to copy you. A VLA is a third step on the same ladder: it is still imitation learning, but the network starts from a model that has already learned to see and read from a very large amount of data.</p>
+
+  <div class="trio">
+    <div class="card"><span class="eyebrow">Reinforcement learning</span><h4>Learns by trial and reward</h4>
+      <dl><dt>You give it</dt><dd>A reward function and a simulator</dd><dt>It already knows</dt><dd>Nothing</dd><dt>Good for</dt><dd>Reaching, balance, skills you can score with a formula</dd></dl></div>
+    <div class="card"><span class="eyebrow">Imitation learning · ACT</span><h4>Learns by copying you</h4>
+      <dl><dt>You give it</dt><dd>~50 demonstrations of one task</dd><dt>It already knows</dt><dd>Only generic image features (ImageNet backbone)</dd><dt>Good for</dt><dd>One fixed task, done precisely</dd></dl></div>
+    <div class="card hl"><span class="eyebrow">Vision-Language-Action</span><h4>Copies you, but starts educated</h4>
+      <dl><dt>You give it</dt><dd>Demonstrations <em>plus</em> a sentence for each</dd><dt>It already knows</dt><dd>Objects, colours, words, and motion from thousands of other robot episodes</dd><dt>Good for</dt><dd>Several tasks chosen by instruction; more tolerance to new scenes</dd></dl></div>
+  </div>
+
+  <div class="note analogy"><span class="label">Analogy</span>
+  <p>Training ACT is like hiring someone who has never seen a kitchen and showing them how to make one sandwich fifty times. Training a VLA is like hiring a trained cook who already knows what bread, knives and "toasted" mean. You still have to show the cook <em>your</em> kitchen and <em>your</em> sandwich, but they pick it up faster and can follow "make the cheese one this time". <a href="#a2-train">Part A2</a> shows how this cook is trained.</p></div>
+
+  <h3>The models you can use with SO-101 today</h3>
+  <p>All of these run inside Hugging Face <strong>LeRobot</strong>, the open-source library the SO-101 was designed for. This lesson uses SmolVLA because it is small enough for a lab GPU and was pre-trained largely on community SO-100/SO-101 data.</p>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Model</th><th>Takes an instruction?</th><th class="num">Size</th><th>Pre-trained on</th><th>Training GPU (rough)</th><th>Use it when</th></tr></thead>
+    <tbody>
+      <tr><td><b>ACT</b></td><td>No</td><td class="num">tens of M</td><td>ImageNet image features only</td><td>8 GB is enough</td><td>Baseline. One task, one scene.</td></tr>
+      <tr class="hl"><td><b>SmolVLA</b></td><td>Yes</td><td class="num">450 M</td><td>481 community LeRobot datasets (~23k episodes, 10.6 M frames), many on SO-100 arms</td><td>16–24 GB comfortable; 8 GB only with a small batch; ~4 h for 20k steps on one A100</td><td>First VLA on SO-101. This lesson.</td></tr>
+      <tr><td><b>π0 / π0.5</b> (Physical Intelligence)</td><td>Yes</td><td class="num">~3.3 B</td><td>Large multi-robot dataset</td><td>Full fine-tune needs an 80 GB-class GPU; LoRA reduces this</td><td>Harder, contact-rich tasks; when you have cloud GPUs</td></tr>
+      <tr><td><b>GR00T N1.x</b> (NVIDIA)</td><td>Yes</td><td class="num">~3 B</td><td>Real, simulated and video data across embodiments</td><td>N1.5 default fine-tune ≈ 25 GB</td><td>Links to the Isaac Sim / Isaac Lab side of the course</td></tr>
+    </tbody></table></div>
+  <p class="small muted">The ACT figure matches the earlier ACT lesson (about 34 M parameters used at inference). LeRobot v0.6 replaced GR00T N1.5 with N1.7; check the docs for the exact version your install ships with.</p>
+</section>
+
+<!-- ===================== A2 ===================== -->
+<section class="part" id="a2">
+  <div class="part-head"><span class="tag">Part A2</span><span class="eyebrow">Concept</span></div>
+  <h2>Inside a VLA, and how the "trained cook" is built</h2>
+  <p>In Part A1 we said a VLA is like hiring a trained cook: someone who already knows what bread, knives and "toasted" mean, so you only have to show them your kitchen and your sandwich. This part opens that analogy up. First the parts of the model, then what each of the three letters V, L and A adds, then the five stages of training that turn an empty network into a cook you can hire, and finally how you teach that cook your task, and later a new one.</p>
+
+  <h3>A2.1 · The five parts: eyes, ears, body sense, brain, hands</h3>
+  <p>Every VLA in the table above has the same five parts. The figure uses SmolVLA's real numbers.</p>
+
+  <figure>
+  <div class="fig">
+  <svg viewBox="0 0 960 400" role="img" aria-labelledby="fa-t">
+    <title id="fa-t">SmolVLA anatomy: images, instruction and state become about 139 tokens, the VLM backbone processes them using its lower half of layers, and the action expert turns noise into a 50 by 6 action chunk in 10 steps.</title>
+    <defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+    <text x="20" y="18" class="mono s dim">1 · TURN EVERYTHING INTO TOKENS</text>
+    <!-- row 1 -->
+    <rect x="20" y="28" width="118" height="44" rx="6" class="vis"/><text x="79" y="55" text-anchor="middle" class="m">Front image</text>
+    <path d="M140,50 L164,50" class="ln" marker-end="url(#ah2)"/>
+    <g class="fv"><rect x="170" y="37" width="10" height="10"/><rect x="183" y="37" width="10" height="10"/><rect x="196" y="37" width="10" height="10"/><rect x="209" y="37" width="10" height="10"/><rect x="222" y="37" width="10" height="10"/><rect x="235" y="37" width="10" height="10"/><rect x="248" y="37" width="10" height="10"/><rect x="261" y="37" width="10" height="10"/>
+    <rect x="170" y="50" width="10" height="10"/><rect x="183" y="50" width="10" height="10"/><rect x="196" y="50" width="10" height="10"/><rect x="209" y="50" width="10" height="10"/><rect x="222" y="50" width="10" height="10"/><rect x="235" y="50" width="10" height="10"/><rect x="248" y="50" width="10" height="10"/><rect x="261" y="50" width="10" height="10"/></g>
+    <text x="284" y="55" class="s mono tv">64 tokens</text>
+    <!-- row 2 -->
+    <rect x="20" y="100" width="118" height="44" rx="6" class="vis"/><text x="79" y="127" text-anchor="middle" class="m">Wrist image</text>
+    <path d="M140,122 L164,122" class="ln" marker-end="url(#ah2)"/>
+    <g class="fv"><rect x="170" y="109" width="10" height="10"/><rect x="183" y="109" width="10" height="10"/><rect x="196" y="109" width="10" height="10"/><rect x="209" y="109" width="10" height="10"/><rect x="222" y="109" width="10" height="10"/><rect x="235" y="109" width="10" height="10"/><rect x="248" y="109" width="10" height="10"/><rect x="261" y="109" width="10" height="10"/>
+    <rect x="170" y="122" width="10" height="10"/><rect x="183" y="122" width="10" height="10"/><rect x="196" y="122" width="10" height="10"/><rect x="209" y="122" width="10" height="10"/><rect x="222" y="122" width="10" height="10"/><rect x="235" y="122" width="10" height="10"/><rect x="248" y="122" width="10" height="10"/><rect x="261" y="122" width="10" height="10"/></g>
+    <text x="284" y="127" class="s mono tv">64 tokens</text>
+    <!-- row 3 -->
+    <rect x="20" y="172" width="118" height="44" rx="6" class="lang"/><text x="79" y="199" text-anchor="middle" class="m">Instruction</text>
+    <path d="M140,194 L164,194" class="ln" marker-end="url(#ah2)"/>
+    <g class="fl"><rect x="170" y="189" width="10" height="10"/><rect x="183" y="189" width="10" height="10"/><rect x="196" y="189" width="10" height="10"/><rect x="209" y="189" width="10" height="10"/><rect x="222" y="189" width="10" height="10"/><rect x="235" y="189" width="10" height="10"/><rect x="248" y="189" width="10" height="10"/><rect x="261" y="189" width="10" height="10"/></g>
+    <text x="284" y="199" class="s mono tl">≈10 tokens</text>
+    <!-- row 4 -->
+    <rect x="20" y="244" width="118" height="44" rx="6" class="st"/><text x="79" y="271" text-anchor="middle" class="m">Joint state</text>
+    <path d="M140,266 L164,266" class="ln" marker-end="url(#ah2)"/>
+    <rect x="170" y="260" width="12" height="12" class="fs"/>
+    <text x="284" y="271" class="s mono ts">1 token</text>
+    <!-- converge -->
+    <path d="M362,50 L426,150" class="ln"/><path d="M362,122 L426,158" class="ln"/><path d="M362,194 L426,166" class="ln"/><path d="M362,266 L426,174" class="ln" marker-end="url(#ah2)"/>
+    <!-- backbone -->
+    <text x="535" y="18" text-anchor="middle" class="mono s dim">2 · BRAIN: VLM BACKBONE</text>
+    <rect x="430" y="28" width="210" height="270" rx="10" class="box2"/>
+    <g fill="none" stroke="var(--ink-2)" stroke-dasharray="4 3"><rect x="450" y="44" width="170" height="22" rx="4"/><rect x="450" y="72" width="170" height="22" rx="4"/><rect x="450" y="100" width="170" height="22" rx="4"/><rect x="450" y="128" width="170" height="22" rx="4"/></g>
+    <text x="535" y="113" text-anchor="middle" class="s dim">upper layers: not used</text>
+    <g><rect x="450" y="160" width="170" height="22" rx="4" class="acc"/><rect x="450" y="188" width="170" height="22" rx="4" class="acc"/><rect x="450" y="216" width="170" height="22" rx="4" class="acc"/><rect x="450" y="244" width="170" height="22" rx="4" class="acc"/></g>
+    <text x="535" y="231" text-anchor="middle" class="s">lower half: used</text>
+    <text x="535" y="288" text-anchor="middle" class="s dim">SmolVLM2 (frozen)</text>
+    <path d="M642,200 L696,200" class="ln" marker-end="url(#ah2)"/>
+    <text x="669" y="190" text-anchor="middle" class="s dim">features</text>
+    <!-- expert -->
+    <text x="820" y="18" text-anchor="middle" class="mono s dim">3 · HANDS: ACTION EXPERT</text>
+    <rect x="740" y="30" width="160" height="38" rx="6" class="box"/>
+    <text x="820" y="54" text-anchor="middle" class="s">random noise 50 × 6</text>
+    <path d="M820,70 L820,116" class="ln" marker-end="url(#ah2)"/>
+    <rect x="700" y="120" width="240" height="166" rx="10" class="act"/>
+    <text x="820" y="146" text-anchor="middle" class="l">Action expert (~100 M)</text>
+    <text x="820" y="174" text-anchor="middle" class="s">predicts a velocity <tspan font-style="italic">v</tspan> for every number</text>
+    <text x="820" y="200" text-anchor="middle" class="m mono">x ← x + 0.1 · v</text>
+    <path d="M760,230 a20,14 0 1,0 40,0" class="sa"/><path d="M800,230 l-6,-6 m6,6 l5,-7" class="sa"/>
+    <text x="812" y="242" class="s">repeat 10 times</text>
+    <text x="820" y="270" text-anchor="middle" class="s dim">this is the trained part</text>
+    <path d="M820,288 L820,322" class="ln" marker-end="url(#ah2)"/>
+    <rect x="740" y="326" width="160" height="38" rx="6" class="act"/>
+    <text x="820" y="350" text-anchor="middle" class="s">action chunk 50 × 6</text>
+    <!-- totals -->
+    <text x="20" y="338" class="m mono">IN  ≈ 64 + 64 + 10 + 1 = 139 tokens</text>
+    <text x="20" y="364" class="m mono">OUT = 50 steps × 6 joints = 300 numbers</text>
+  </svg>
+  </div>
+  <figcaption><b>Figure 2. SmolVLA, part by part.</b> The token count for the sentence depends on the wording; 10 is a typical value for a short instruction. Only the coloured action expert (and a few small connector layers) is updated during fine-tuning by default.</figcaption>
+  </figure>
+
+  <div class="tbl wide"><table>
+    <thead><tr><th>Part</th><th>Body analogy</th><th>What it does in plain words</th><th>SmolVLA detail</th></tr></thead>
+    <tbody>
+      <tr><td><b class="t-vis">Vision encoder</b></td><td>Eyes</td><td>Cuts each camera image into small patches and turns each patch into a list of numbers (a <em>token</em>) that describes what is there.</td><td>Each frame is squeezed to 64 tokens so the model stays fast.</td></tr>
+      <tr><td><b class="t-lang">Tokenizer</b></td><td>Ears</td><td>Splits your sentence into word pieces and gives each one a token.</td><td>Same tokenizer as the language model.</td></tr>
+      <tr><td><b class="t-state">State projector</b></td><td>Body sense</td><td>Turns the 6 joint readings into one token, so the model knows where the arm is now.</td><td>One linear layer.</td></tr>
+      <tr><td><b>VLM backbone</b></td><td>Brain ("System 2", slow thinking)</td><td>Reads all tokens together and relates them: "red cube" ↔ the red pixels in the front image ↔ the gripper's position.</td><td>SmolVLM2, kept frozen. Only the lower half of its layers is used, which halves the cost.</td></tr>
+      <tr><td><b class="t-act">Action expert</b></td><td>Hands ("System 1", fast reflex)</td><td>A smaller network that turns the brain's understanding into a smooth 50-step motion plan.</td><td>About 100 M parameters, trained with flow matching (Part A3).</td></tr>
+    </tbody></table></div>
+
+  <!-- ===== A2.2 ===== -->
+  <h3 id="a2-vla">A2.2 · What V, L and A each add</h3>
+  <p>The easiest way to see what each part contributes is to take it away. Figure 2b shows the same SO-101 task with one letter missing each time.</p>
+
+  <figure>
+  <div class="fig">
+  <svg viewBox="0 0 960 240" role="img" aria-labelledby="fv-t">
+    <title id="fv-t">Without vision the arm replays a memorised path to where the cube used to be. Without language it cannot choose between two cubes. Without action it can describe the scene but cannot move.</title>
+    <defs><marker id="ahv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+    <g><rect x="20" y="16" width="280" height="212" rx="10" class="box2"/><rect x="340" y="16" width="280" height="212" rx="10" class="box2"/><rect x="660" y="16" width="280" height="212" rx="10" class="box2"/></g>
+    <text x="36" y="42" class="l"><tspan class="tv">V</tspan> removed: no vision</text>
+    <text x="356" y="42" class="l"><tspan class="tl">L</tspan> removed: no language</text>
+    <text x="676" y="42" class="l"><tspan class="ta">A</tspan> removed: no action</text>
+    <!-- panel 1 -->
+    <circle cx="160" cy="76" r="14" class="act"/>
+    <rect x="98" y="150" width="22" height="22" fill="none" stroke="var(--ink-2)" stroke-dasharray="3 3"/>
+    <text x="109" y="190" text-anchor="middle" class="s dim">taught spot</text>
+    <rect x="212" y="138" width="20" height="20" class="fred"/>
+    <text x="222" y="176" text-anchor="middle" class="s dim">cube today</text>
+    <path d="M160,90 C150,120 120,130 112,146" class="sbad" stroke-dasharray="5 4" marker-end="url(#ahv)"/>
+    <text x="160" y="212" text-anchor="middle" class="s">replays a memorised path</text>
+    <!-- panel 2 -->
+    <circle cx="480" cy="76" r="14" class="act"/>
+    <rect x="410" y="150" width="20" height="20" class="fred"/><rect x="530" y="150" width="20" height="20" class="fblue"/>
+    <path d="M480,90 L480,140" class="sbad" stroke-dasharray="5 4" marker-end="url(#ahv)"/>
+    <text x="480" y="168" text-anchor="middle" class="xl tbad">?</text>
+    <text x="480" y="212" text-anchor="middle" class="s">cannot tell which cube you mean</text>
+    <!-- panel 3 -->
+    <circle cx="800" cy="76" r="14" class="act"/>
+    <path d="M800,90 L800,112" stroke="var(--ink-2)" stroke-width="6" stroke-linecap="round"/>
+    <rect x="682" y="128" width="236" height="46" rx="23" class="lang"/>
+    <text x="800" y="156" text-anchor="middle" class="s">"The red cube is left of the bin."</text>
+    <text x="800" y="212" text-anchor="middle" class="s">understands, but cannot move a joint</text>
+  </svg>
+  </div>
+  <figcaption><b>Figure 2b. Take one letter away.</b> Without V you get a tape recorder, without L you get a one-task robot, and without A you get a chatbot that can see.</figcaption>
+  </figure>
+
+  <div class="tbl wide"><table>
+    <thead><tr><th>Letter</th><th>Ability it adds</th><th>SO-101 example</th><th>Cook analogy</th></tr></thead>
+    <tbody>
+      <tr><td><b class="t-vis">V · Vision</b></td><td>Finds and recognises objects in the camera images, so the motion adapts to where things are</td><td>The cube is 4 cm further left than in the demos; the arm reaches there instead of to the old spot</td><td>Looks at the counter before reaching for the bread</td></tr>
+      <tr><td><b class="t-lang">L · Language</b></td><td>Chooses <em>which</em> task or object, and links words to things it sees</td><td>"red" vs "blue" picks the cube; one model holds several tasks</td><td>Understands the order: "the cheese one this time"</td></tr>
+      <tr><td><b class="t-act">A · Action</b></td><td>Turns understanding into joint motion for this particular arm</td><td>A 50 × 6 chunk of joint targets the follower can play</td><td>Hands that can actually slice and spread</td></tr>
+      <tr class="hl"><td><b>V + L + A</b></td><td>Instruction following, task switching, tolerance to small scene changes, and reuse of general knowledge</td><td>"Put the blue cube in the bin" with the cubes in new places</td><td>A cook who reads the order, looks at the counter and makes it</td></tr>
+    </tbody></table></div>
+
+  <p>Compare this with what you already know:</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Model</th><th class="num">V</th><th class="num">L</th><th class="num">A</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>A chat model that sees images (VLM)</td><td class="num">✓</td><td class="num">✓</td><td class="num">—</td><td>Describes the scene in words; cannot drive motors</td></tr>
+      <tr><td>ACT</td><td class="num">✓</td><td class="num">—</td><td class="num">✓</td><td>Moves well, but one task per model; vision learned only from your 50 demos</td></tr>
+      <tr class="hl"><td>VLA (SmolVLA)</td><td class="num">✓</td><td class="num">✓</td><td class="num">✓</td><td>Moves, chooses the task by instruction, and brings pre-trained knowledge of what things look like and are called</td></tr>
+    </tbody></table></div>
+
+  <!-- ===== A2.3 ===== -->
+  <h3 id="a2-train">A2.3 · How the cook was trained: five stages</h3>
+  <p>Nobody trains a VLA in one go. It is assembled from models that were each trained for something simpler, and every stage reuses what the previous stages learned. Stages 1–4 were done for you by Google, Hugging Face and the LeRobot community; stage 5 is your lab.</p>
+
+  <figure>
+  <div class="fig">
+  <svg viewBox="0 0 960 400" role="img" aria-labelledby="fs-t">
+    <title id="fs-t">Five training stages. 1: the vision encoder learns to match pictures with words. 2: the language model learns to read. 3: the two are joined into a vision-language model that can describe images. 4: an action expert is added and trained on 481 community robot datasets while the VLM is frozen. 5: you fine-tune the action expert on your own 60 episodes.</title>
+    <defs><marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+    <g class="l" text-anchor="middle"><text x="106" y="24">1 · See</text><text x="293" y="24">2 · Read</text><text x="480" y="24">3 · Connect</text><text x="667" y="24">4 · Move</text><text x="854" y="24" class="tk">5 · Your task</text></g>
+    <g class="s dim" text-anchor="middle"><text x="106" y="42">Google (SigLIP)</text><text x="293" y="42">Hugging Face (SmolLM2)</text><text x="480" y="42">Hugging Face (SmolVLM2)</text><text x="667" y="42">LeRobot community (SmolVLA)</text><text x="854" y="42">you</text></g>
+    <rect x="768" y="8" width="172" height="378" rx="10" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+    <!-- col1 -->
+    <rect x="30" y="56" width="152" height="38" rx="6" class="vis"/><text x="106" y="80" text-anchor="middle" class="s">vision encoder</text>
+    <rect x="30" y="104" width="152" height="38" rx="6" fill="none" stroke="var(--rule)" stroke-dasharray="3 4"/>
+    <rect x="30" y="152" width="152" height="38" rx="6" fill="none" stroke="var(--rule)" stroke-dasharray="3 4"/>
+    <!-- col2 -->
+    <rect x="217" y="56" width="152" height="38" rx="6" fill="none" stroke="var(--rule)" stroke-dasharray="3 4"/>
+    <rect x="217" y="104" width="152" height="38" rx="6" class="lang"/><text x="293" y="128" text-anchor="middle" class="s">language model</text>
+    <rect x="217" y="152" width="152" height="38" rx="6" fill="none" stroke="var(--rule)" stroke-dasharray="3 4"/>
+    <!-- col3 -->
+    <rect x="404" y="56" width="152" height="38" rx="6" class="vis"/><text x="480" y="80" text-anchor="middle" class="s">vision encoder</text>
+    <rect x="404" y="104" width="152" height="38" rx="6" class="lang"/><text x="480" y="128" text-anchor="middle" class="s">language model</text>
+    <line x1="480" y1="94" x2="480" y2="104" stroke="var(--ink)" stroke-width="3"/>
+    <rect x="404" y="152" width="152" height="38" rx="6" fill="none" stroke="var(--rule)" stroke-dasharray="3 4"/>
+    <!-- col4 -->
+    <rect x="591" y="56" width="152" height="38" rx="6" class="box2"/><text x="667" y="80" text-anchor="middle" class="s dim">vision · frozen</text>
+    <rect x="591" y="104" width="152" height="38" rx="6" class="box2"/><text x="667" y="128" text-anchor="middle" class="s dim">language · frozen</text>
+    <rect x="591" y="152" width="152" height="38" rx="6" class="act"/><text x="667" y="176" text-anchor="middle" class="s">action expert (new)</text>
+    <!-- col5 -->
+    <rect x="778" y="56" width="152" height="38" rx="6" class="box2"/><text x="854" y="80" text-anchor="middle" class="s dim">vision · frozen</text>
+    <rect x="778" y="104" width="152" height="38" rx="6" class="box2"/><text x="854" y="128" text-anchor="middle" class="s dim">language · frozen</text>
+    <rect x="778" y="152" width="152" height="38" rx="6" class="act"/><text x="854" y="176" text-anchor="middle" class="s">action expert (tuned)</text>
+    <!-- arrows -->
+    <g class="ln"><path d="M184,123 L215,123" marker-end="url(#ahs)"/><path d="M371,123 L402,123" marker-end="url(#ahs)"/><path d="M558,123 L589,123" marker-end="url(#ahs)"/><path d="M745,123 L776,123" marker-end="url(#ahs)"/></g>
+    <!-- learns -->
+    <g class="s mono dim"><text x="30" y="222">LEARNS</text><text x="217" y="222">LEARNS</text><text x="404" y="222">LEARNS</text><text x="591" y="222">LEARNS</text><text x="778" y="222">LEARNS</text></g>
+    <g class="s"><text x="30" y="242">pictures ↔ words</text><text x="30" y="258">("this is a red cube")</text>
+      <text x="217" y="242">grammar and meaning</text><text x="217" y="258">("a bin holds things")</text>
+      <text x="404" y="242">to describe and answer</text><text x="404" y="258">questions about images</text>
+      <text x="591" y="242">general reach, grasp,</text><text x="591" y="258">lift and place motions</text>
+      <text x="778" y="242">your arm, cameras,</text><text x="778" y="258">cubes, bin, sentences</text></g>
+    <g class="s mono dim"><text x="30" y="290">DATA</text><text x="217" y="290">DATA</text><text x="404" y="290">DATA</text><text x="591" y="290">DATA</text><text x="778" y="290">DATA</text></g>
+    <g class="s"><text x="30" y="310">billions of web</text><text x="30" y="326">image–caption pairs</text>
+      <text x="217" y="310">trillions of words</text><text x="217" y="326">of text</text>
+      <text x="404" y="310">image + question</text><text x="404" y="326">→ answer examples</text>
+      <text x="591" y="310">481 datasets, ~23k</text><text x="591" y="326">episodes, 10.6 M frames</text>
+      <text x="778" y="310">60 episodes,</text><text x="778" y="326">36,000 frames</text></g>
+    <g class="s mono dim"><text x="30" y="356">COOK</text><text x="217" y="356">COOK</text><text x="404" y="356">COOK</text><text x="591" y="356">COOK</text><text x="778" y="356">COOK</text></g>
+    <g class="s tl"><text x="30" y="376">knows foods by sight</text><text x="217" y="376">can read recipes</text><text x="404" y="376">culinary school</text><text x="591" y="376">apprentice, 481 kitchens</text><text x="778" y="376" class="tk">first week in yours</text></g>
+  </svg>
+  </div>
+  <figcaption><b>Figure 2c. The cook's education.</b> A coloured block is trained in that stage; a grey block is reused but frozen; a dashed outline means the part does not exist yet. The heavy line in stage 3 is the small connector that joins the vision encoder to the language model.</figcaption>
+  </figure>
+
+  <h4>Stage 1 · Learning to see (the vision encoder)</h4>
+  <p>SmolVLA's eyes are a <strong>SigLIP</strong> vision encoder, trained by Google on a very large collection of web images and their captions. It never learns robotics. It learns one thing: turn an image into a vector of numbers that lands close to the vector of its matching caption, and far from wrong captions. Each image–caption pair gets a match score <i class="v">s</i>, which is turned into a probability:</p>
+  <div class="math"><span class="lbl">does this caption belong to this image?</span>
+    <i>p</i> = <span class="frac"><span>1</span><span>1 + <i>e</i><sup>−<i>s</i></sup></span></span>
+    &nbsp;&nbsp;&nbsp;&nbsp; loss = −log <i>p</i> &nbsp;(true pair) &nbsp;&nbsp;or&nbsp;&nbsp; −log(1 − <i>p</i>) &nbsp;(wrong pair)</div>
+  <div class="tbl"><table>
+    <thead><tr><th>Worked example</th><th class="num">score s</th><th class="num">p</th><th class="num">loss</th><th>Training does…</th></tr></thead>
+    <tbody>
+      <tr><td>photo of a red cube + "a red cube" (true)</td><td class="num">3.0</td><td class="num">0.95</td><td class="num">0.05</td><td>almost nothing; already right</td></tr>
+      <tr><td>photo of a red cube + "a blue cube" (wrong)</td><td class="num">2.0</td><td class="num">0.88</td><td class="num">2.13</td><td>pushes this score down hard</td></tr>
+    </tbody></table></div>
+  <p>Repeat this over billions of pairs and colours, shapes, objects and positions all get their own regions in the vector space. That is why the 64 image tokens SmolVLA receives are already meaningful before it has ever seen your bench.</p>
+
+  <h4>Stage 2 · Learning to read (the language model)</h4>
+  <p>The brain's language half is <strong>SmolLM2</strong>, a small language model trained by Hugging Face on trillions of words of text. Its only task: predict the next word.</p>
+  <div class="math"><span class="lbl">next-word loss</span>
+    loss = −log <i>p</i>( correct next word | the words so far )</div>
+  <div class="tbl"><table>
+    <thead><tr><th>"Put the cube in the ___"</th><th class="num">model's p("bin")</th><th class="num">loss</th></tr></thead>
+    <tbody>
+      <tr><td>after a lot of training</td><td class="num">0.60</td><td class="num">0.51</td></tr>
+      <tr><td>early in training</td><td class="num">0.05</td><td class="num">3.00</td></tr>
+    </tbody></table></div>
+  <p>To predict well, the model has to pick up grammar and a lot of everyday meaning: that bins and boxes hold things, that "put X in Y" means X ends up inside Y, that "red" and "blue" are both colours. None of this is about robots, and all of it is useful to one.</p>
+
+  <h4>Stage 3 · Connecting seeing and words (the vision-language model)</h4>
+  <p>Hugging Face then joined the two into <strong>SmolVLM2</strong>. A small connector squeezes the encoder's image features into 64 tokens and feeds them into the language model as if they were words. The joined model is trained on examples of the form <em>image + question → answer</em>: captions, "how many cubes are there?", reading text in pictures, short videos. Now it can look at your bench photo and answer "The red cube is to the left of the bin."</p>
+  <p>This is the cook leaving culinary school: they can read a recipe while looking at the ingredients. But the output is still <strong>words</strong>. Nothing in stages 1–3 knows what a servo is.</p>
+
+  <h4>Stage 4 · Learning to move (SmolVLA pre-training)</h4>
+  <p>The LeRobot team added the <strong>action expert</strong>, a new network of about 100 M parameters that starts with random weights, and trained it on robot data shared by the community on the Hugging Face Hub:</p>
+  <div class="tbl"><table>
+    <tbody>
+      <tr><td><b>Data</b></td><td>481 community datasets, about 23,000 episodes and 10.6 million frames, mostly low-cost SO-100-type arms in many different homes and labs</td></tr>
+      <tr><td><b>Cleaning the language</b></td><td>Community task labels were often vague ("task1", "pick"). A separate VLM (Qwen2.5-VL-3B) looked at sample frames and rewrote each label as a short, action-style instruction</td></tr>
+      <tr><td><b>Cleaning the cameras</b></td><td>Camera names differed in every dataset, so views were mapped to fixed slots: top, wrist, side → image 1, 2, 3. This is why your own fine-tune may need <code>--rename_map</code> to the base model's camera names (Part B, Stage 4: Train)</td></tr>
+      <tr><td><b>What is trained</b></td><td>The action expert, with the flow-matching loss you will meet in Part A3. The vision-language model stays frozen, so its knowledge from stages 1–3 is kept</td></tr>
+      <tr><td><b>Result</b></td><td><code>lerobot/smolvla_base</code>: a model that already produces sensible reach-grasp-place motion for arms like yours, steered by images and an instruction</td></tr>
+    </tbody></table></div>
+  <p>This is the apprenticeship. The cook has worked in 481 kitchens, each with different counters, lighting and utensils, so they have general hand skills that do not depend on any one kitchen.</p>
+
+  <h4>Stage 5 · Your kitchen (fine-tuning)</h4>
+  <p>You start from <code>smolvla_base</code> and continue training on your own 60 episodes. The same flow-matching loss is used; the backbone stays frozen and the action expert is adjusted. After about 20,000 steps the model has learned the things only your bench can teach: your exact cameras and their angles, your calibration, the size of your cubes, where the bin is, and your two instructions.</p>
+
+  <div class="tbl wide"><table>
+    <thead><tr><th>Stage</th><th>Part trained</th><th>Data</th><th>Loss</th><th>Ability gained</th></tr></thead>
+    <tbody>
+      <tr><td><b>1 · See</b></td><td>Vision encoder</td><td>Image–caption pairs</td><td>Image–text match</td><td>Recognise objects and colours</td></tr>
+      <tr><td><b>2 · Read</b></td><td>Language model</td><td>Text</td><td>Next word</td><td>Understand instructions</td></tr>
+      <tr><td><b>3 · Connect</b></td><td>Both + connector</td><td>Image + question → answer</td><td>Next word</td><td>Talk about what it sees</td></tr>
+      <tr><td><b>4 · Move</b></td><td>Action expert (new)</td><td>Community robot episodes</td><td>Flow matching</td><td>General arm motion from images + words</td></tr>
+      <tr class="hl"><td><b>5 · Your task</b></td><td>Action expert</td><td>Your 60 episodes</td><td>Flow matching</td><td>Your arm, scene and instructions</td></tr>
+    </tbody></table></div>
+
+  <!-- ===== A2.4 ===== -->
+  <h3 id="a2-transfer">A2.4 · Why 60 episodes are enough: transfer</h3>
+  <p>Compare the experience behind each stage:</p>
+  <div class="math"><span class="lbl">community robot data vs your data</span>
+    <span class="frac"><span>10.6 M frames</span><span>36,000 frames</span></span> ≈ 294 × &nbsp;&nbsp;&nbsp;&nbsp; at 30 fps: ≈ 98 hours of demos vs 20 minutes</div>
+  <p>Your 20 minutes could never teach grasping from scratch on top of what a red cube looks like and what "bin" means. They do not have to. Training always changes weights a little at a time:</p>
+  <div class="math"><span class="lbl">one training update (only for weights that are not frozen)</span>
+    <i>w</i><sub>new</sub> = <i>w</i><sub>old</sub> − η · <span class="frac"><span>∂<i>L</i></span><span>∂<i>w</i></span></span></div>
+  <p>where η is a small step size. Where you <em>start</em> decides how far you have to walk. Figure 2d shows the idea on a one-dimensional loss curve.</p>
+
+  <figure>
+  <div class="fig narrow">
+  <svg viewBox="0 0 720 250" role="img" aria-labelledby="fl2-t">
+    <title id="fl2-t">Loss curve: starting from random weights needs many steps and passes a flat stretch; starting from pre-trained weights is already near the bottom and needs a few steps.</title>
+    <defs><marker id="ahl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+    <line x1="40" y1="228" x2="690" y2="228" stroke="var(--ink-2)"/><line x1="40" y1="10" x2="40" y2="228" stroke="var(--ink-2)"/>
+    <text x="44" y="244" class="s dim">model weights (simplified to one number) →</text>
+    <text x="34" y="22" text-anchor="end" class="s dim">loss</text>
+    <polyline fill="none" stroke="var(--ink-2)" stroke-width="2" points="40.0,14.2 52.8,22.5 65.6,30.8 78.4,39.2 91.2,48.1 104.0,57.4 116.8,67.2 129.6,77.5 142.4,88.2 155.2,99.0 168.0,109.7 180.8,120.0 193.6,129.7 206.4,138.6 219.2,146.4 232.0,153.1 244.8,158.6 257.6,163.0 270.4,166.5 283.2,169.3 296.0,171.6 308.8,173.7 321.6,175.8 334.4,178.1 347.2,180.9 360.0,184.2 372.8,188.0 385.6,192.2 398.4,196.7 411.2,201.3 424.0,205.7 436.8,209.6 449.6,212.8 462.4,215.0 475.2,216.2 488.0,216.3 500.8,215.2 513.6,213.0 526.4,210.0 539.2,206.4 552.0,202.3 564.8,198.2 577.6,194.1 590.4,190.4 603.2,187.1 616.0,184.4 628.8,182.1 641.6,180.3 654.4,178.6 667.2,176.9 680.0,174.9"/>
+    <path d="M78.4,29.2 L155.2,89.0" fill="none" stroke="var(--bad)" stroke-width="1.5" marker-end="url(#ahl)"/>
+    <path d="M155.2,89.0 L232.0,143.1" fill="none" stroke="var(--bad)" stroke-width="1.5" marker-end="url(#ahl)"/>
+    <path d="M232.0,143.1 L296.0,161.6" fill="none" stroke="var(--bad)" stroke-width="1.5" marker-end="url(#ahl)"/>
+    <path d="M296.0,161.6 L353.6,172.5" fill="none" stroke="var(--bad)" stroke-width="1.5" marker-end="url(#ahl)"/>
+    <path d="M353.6,172.5 L404.8,189.0" fill="none" stroke="var(--bad)" stroke-width="1.5" marker-end="url(#ahl)"/>
+    <path d="M404.8,189.0 L443.2,201.3" fill="none" stroke="var(--bad)" stroke-width="1.5" marker-end="url(#ahl)"/>
+    <path d="M443.2,201.3 L468.8,205.8" fill="none" stroke="var(--bad)" stroke-width="1.5" marker-end="url(#ahl)"/>
+    <circle cx="78.4" cy="39.2" r="5" fill="var(--bad)"/>
+    <circle cx="155.2" cy="99.0" r="5" fill="var(--bad)"/>
+    <circle cx="232.0" cy="153.1" r="5" fill="var(--bad)"/>
+    <circle cx="296.0" cy="171.6" r="5" fill="var(--bad)"/>
+    <circle cx="353.6" cy="182.5" r="5" fill="var(--bad)"/>
+    <circle cx="404.8" cy="199.0" r="5" fill="var(--bad)"/>
+    <circle cx="443.2" cy="211.3" r="5" fill="var(--bad)"/>
+    <circle cx="468.8" cy="215.8" r="5" fill="var(--bad)"/>
+    <path d="M590.4,180.4 L532.8,198.3" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#ahl)"/>
+    <path d="M532.8,198.3 L494.4,205.9" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#ahl)"/>
+    <circle cx="590.4" cy="190.4" r="5" fill="var(--accent)"/>
+    <circle cx="532.8" cy="208.3" r="5" fill="var(--accent)"/>
+    <circle cx="494.4" cy="215.9" r="5" fill="var(--accent)"/>
+    <text x="250" y="70" class="s tbad">from random weights:</text><text x="250" y="86" class="s tbad">many steps, slow flat stretch</text>
+    <text x="560" y="140" class="s tk">from smolvla_base:</text><text x="560" y="156" class="s tk">already close, a few steps</text>
+    <text x="482" y="244" text-anchor="middle" class="s dim">good for your task</text>
+  </svg>
+  </div>
+  <figcaption><b>Figure 2d. Pre-training gives a better starting point.</b> Real networks have hundreds of millions of weights instead of one, but the picture is the same: the pre-trained model starts near a good solution, so a small dataset is enough to finish the job.</figcaption>
+  </figure>
+
+  <p>The SmolVLA authors measured this directly. In their ablation, adding community pre-training raised the average success rate from <strong>51.7% to 78.3%</strong> with the same fine-tuning. Their documentation also reports that about 50 episodes worked while a 25-episode version of the same task performed poorly: pre-training lowers the amount of data you need, it does not remove it.</p>
+
+  <div class="tbl"><table>
+    <thead><tr><th>Worked example · SmolVLA during your fine-tune</th><th class="num">Value</th></tr></thead>
+    <tbody>
+      <tr><td>Total parameters</td><td class="num">≈ 450 M</td></tr>
+      <tr><td>Trained (action expert and small connectors)</td><td class="num">≈ 100 M</td></tr>
+      <tr><td>Frozen (vision + language, stages 1–3)</td><td class="num">≈ 350 M</td></tr>
+      <tr class="hl"><td>Share of the model you change</td><td class="num">≈ 22%</td></tr>
+    </tbody></table></div>
+  <p>Freezing the backbone does two jobs: it keeps the cook's general knowledge from being overwritten by your tiny dataset, and it makes training cheap enough for a lab GPU.</p>
+
+  <!-- ===== A2.5 ===== -->
+  <h3 id="a2-limits">A2.5 · What the cook can and cannot do after your fine-tune</h3>
+  <p>The analogy says the cook "can follow <em>make the cheese one this time</em>". That is true when the cook has made cheese sandwiches before and you showed them how sandwiches are made in your kitchen. It is a promise about <strong>choosing between practised skills and familiar objects</strong>, not about learning new skills from words alone.</p>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Instruction at test time</th><th>In your demos?</th><th>Likely result</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>"Put the red cube in the bin", cube at a taught spot</td><td>Yes</td><td><span class="pill good">works</span></td><td>Exactly what was practised</td></tr>
+      <tr><td>Same, cube between two taught spots</td><td>Nearby</td><td><span class="pill good">usually works</span></td><td>Vision interpolates positions</td></tr>
+      <tr><td>"Put the blue cube in the bin"</td><td>Yes, balanced with red</td><td><span class="pill good">works</span></td><td>Language chooses between practised options</td></tr>
+      <tr><td>"Put the green cube in the bin" (never shown)</td><td>No, but same skill</td><td><span class="pill mid">sometimes</span></td><td>Stage 1–3 knowledge of "green" may carry over; test it, do not assume it</td></tr>
+      <tr><td>"Drop the red block into the container" (new wording)</td><td>Same task, new words</td><td><span class="pill mid">sometimes</span></td><td>The language model knows the words are similar, but your fine-tune only saw one phrasing</td></tr>
+      <tr><td>"Stack the red cube on the blue cube"</td><td>No, new skill</td><td><span class="pill bad">fails</span></td><td>Understanding the sentence does not give the hands a motion they never learned on this arm</td></tr>
+    </tbody></table></div>
+
+  <!-- ===== A2.6 ===== -->
+  <h3 id="a2-new">A2.6 · Teaching the cook a new task later</h3>
+  <p>Suppose after the lab you want the SO-101 to also handle a green cube, or to stack. You do not start over; you run stage 5 again with extra data. The question is what to start from and what data to include.</p>
+  <ol class="steps">
+    <li><b>Decide what kind of "new" it is.</b> A new <em>object</em> with the same skill (green cube into the bin) needs few episodes. A new <em>skill</em> (stacking) needs a full set, about 50 or more.</li>
+    <li><b>Record the new episodes</b> on the same rig, with the same cameras and calibration, and one exact instruction string for the new task, e.g. <code>Put the green cube in the bin</code>. Keep the paired-scene rule: the green cube sits among the other cubes, so the instruction matters.</li>
+    <li><b>Mix old and new data.</b> If you train only on the new task, nothing in the data reminds the model of the old ones and it gradually forgets them (called <em>catastrophic forgetting</em>). Train on the old episodes plus the new ones together.</li>
+    <li><b>Choose the starting point</b> (table below), fine-tune, and keep several checkpoints.</li>
+    <li><b>Evaluate the old tasks again</b>, not only the new one. A new skill that costs you the old ones is not progress.</li>
+  </ol>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Start from…</th><th>Good when</th><th>Watch out for</th></tr></thead>
+    <tbody>
+      <tr><td><b>Your previous fine-tuned checkpoint</b></td><td>Same rig, new object or a close variation; quickest</td><td>Forgetting if the old data is left out</td></tr>
+      <tr><td><b><code>smolvla_base</code> again</b></td><td>A new skill, a changed camera layout, or the old model has drifted</td><td>Takes the full training time; needs all the data at once</td></tr>
+    </tbody></table></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Worked example · adding the green cube</th><th class="num">Episodes</th><th class="num">Share of training batches</th></tr></thead>
+    <tbody>
+      <tr><td>Old: red (30) + blue (30)</td><td class="num">60</td><td class="num">67%</td></tr>
+      <tr><td>New: green, 6 per position × 5</td><td class="num">30</td><td class="num">33%</td></tr>
+      <tr class="hl"><td>Combined dataset</td><td class="num">90</td><td class="num">100%</td></tr>
+    </tbody></table></div>
+  <p class="small muted">Batches are sampled at random from all frames, so each task's share of training is roughly its share of the data. If the new task is lagging after evaluation, record more of it rather than dropping the old episodes.</p>
+
+  <div class="note"><span class="label">Key idea</span>
+  <p>Stages 1–3 give the cook eyes and a vocabulary, stage 4 gives general hands, and stage 5, your lab, teaches this arm in this kitchen. Your dataset only has to cover what is specific to your bench, which is why 60 episodes can be enough, and why the instruction only works for tasks your data actually shows.</p></div>
+</section>
+<!-- ===================== A3 ===================== -->
+<section class="part" id="a3">
+  <div class="part-head"><span class="tag">Part A3</span><span class="eyebrow">Concept · simplified maths</span></div>
+  <h2>The maths you need, and nothing more</h2>
+  <p>Four small ideas explain almost everything the training is doing. Each one comes with a worked example you can check by hand.</p>
+
+  <h3>Idea 1 · An action is a list of six numbers; a chunk is a table of them</h3>
+  <p>At any moment the follower arm is told where each of its six motors should go. That command is the <strong>action</strong>:</p>
+  <div class="math"><span class="lbl">one action (time step t)</span>
+    <i>a</i><sub><i>t</i></sub> = [ pan, lift, elbow, wrist_flex, wrist_roll, gripper ]</div>
+  <p>A VLA does not predict one action at a time. It predicts a <strong>chunk</strong> of the next <i class="v">H</i> actions in one go, like a short motion plan:</p>
+  <div class="math"><span class="lbl">action chunk</span>
+    <i>A</i><sub><i>t</i></sub> = [ <i>a</i><sub><i>t</i></sub>, <i>a</i><sub><i>t</i>+1</sub>, … , <i>a</i><sub><i>t</i>+<i>H</i>−1</sub> ] &nbsp;&nbsp;→&nbsp;&nbsp; size <i>H</i> × 6</div>
+  <div class="tbl"><table>
+    <thead><tr><th>Worked example</th><th class="num">Value</th><th>How</th></tr></thead>
+    <tbody>
+      <tr><td>Chunk length <i class="v">H</i> (SmolVLA default)</td><td class="num">50</td><td>given</td></tr>
+      <tr><td>Numbers predicted per chunk</td><td class="num">300</td><td>50 × 6</td></tr>
+      <tr><td>Control rate</td><td class="num">30 Hz</td><td>same as camera fps</td></tr>
+      <tr><td>Time between steps, Δt</td><td class="num">33.3 ms</td><td>1 / 30 s</td></tr>
+      <tr><td>Time covered by one chunk</td><td class="num">1.67 s</td><td>50 × 33.3 ms</td></tr>
+    </tbody></table></div>
+  <p><strong>Why chunks?</strong> One action at a time makes small errors pile up step after step, and the motion jitters. A chunk is planned as one smooth piece, the same reason ACT uses chunks.</p>
+
+  <h3>Idea 2 · Normalisation puts every joint on the same ruler</h3>
+  <p>The shoulder may move across 100 units while the wrist roll moves across 20. If we trained on raw numbers, the network would care mostly about the big joints. So every value is rescaled using the average (μ) and spread (σ) measured over your whole dataset:</p>
+  <div class="math"><span class="lbl">normalise (training)</span>
+    <i>z</i> = <span class="frac"><span><i>a</i> − μ</span><span>σ</span></span>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span class="lbl" style="display:inline">and back (deployment)</span>&nbsp;&nbsp;
+    <i>a</i> = <i>z</i> · σ + μ</div>
+  <div class="tbl"><table>
+    <thead><tr><th>Joint (illustrative numbers)</th><th class="num"><span class="nt">μ</span></th><th class="num"><span class="nt">σ</span></th><th class="num">raw <span class="nt">a</span></th><th class="num"><span class="nt">z</span></th></tr></thead>
+    <tbody>
+      <tr><td>shoulder lift</td><td class="num">20</td><td class="num">15</td><td class="num">50</td><td class="num">(50 − 20) / 15 = 2.0</td></tr>
+      <tr><td>gripper</td><td class="num">30</td><td class="num">20</td><td class="num">10</td><td class="num">(10 − 30) / 20 = −1.0</td></tr>
+    </tbody></table></div>
+  <p>After normalisation both joints live roughly between −3 and +3. LeRobot computes μ and σ automatically and stores them with the dataset (<code>meta/stats.json</code>) and with the trained model. Some models (π0.5) use percentiles instead of μ and σ so that one wild value cannot stretch the scale.</p>
+  <div class="note warn"><span class="label">Why this matters for you</span><p>The statistics describe <em>your</em> calibration. If you recalibrate the arm after recording, the same physical pose gives different raw numbers, and every prediction is shifted. Calibrate once, then record, train and deploy with the same calibration file.</p></div>
+
+  <h3>Idea 3 · Flow matching: start from noise, walk to an action</h3>
+  <p>The action expert does not output the chunk directly. It starts from a table of random numbers and repeatedly nudges it towards a sensible motion. Think of a ball rolling downhill into the nearest valley; each valley is one good way to do the task.</p>
+  <p><strong>Why not just predict the answer directly?</strong> Because good demonstrations often disagree. Look at Figure 3.</p>
+
+  <figure>
+  <div class="fig narrow">
+  <svg viewBox="0 0 720 300" role="img" aria-labelledby="fm-t">
+    <title id="fm-t">Two demonstrations go around a block, one left and one right. Their average goes straight into the block.</title>
+    <rect x="300" y="18" width="120" height="44" rx="4" fill="none" stroke="var(--ink-2)" stroke-width="2"/><text x="360" y="45" text-anchor="middle" class="m">bin</text>
+    <rect x="320" y="128" width="80" height="44" rx="4" class="box2"/><text x="360" y="155" text-anchor="middle" class="s">block</text>
+    <path d="M360,262 C360,220 240,200 240,150 C240,100 340,90 350,66" class="sgood" stroke-width="3"/>
+    <path d="M360,262 C360,220 480,200 480,150 C480,100 380,90 370,66" class="sk" stroke-width="3"/>
+    <path d="M360,262 L360,176" class="sbad" stroke-width="3" stroke-dasharray="7 5"/>
+    <path d="M350,190 l20,-20 m0,20 l-20,-20" stroke="var(--bad)" stroke-width="3"/>
+    <circle cx="360" cy="268" r="9" class="fa"/><text x="360" y="292" text-anchor="middle" class="s">gripper start</text>
+    <text x="230" y="120" text-anchor="end" class="m" fill="var(--good)">Demo A: go left (−1)</text>
+    <text x="490" y="120" class="m tk">Demo B: go right (+1)</text>
+    <text x="498" y="232" class="m tbad">Average (0): crashes</text>
+    <text x="20" y="250" class="s dim">Plain regression learns the</text><text x="20" y="266" class="s dim">average of A and B.</text>
+    <text x="700" y="250" text-anchor="end" class="s dim">Flow matching learns both paths</text><text x="700" y="266" text-anchor="end" class="s dim">and picks one each time.</text>
+  </svg>
+  </div>
+  <figcaption><b>Figure 3. The averaging trap.</b> Half your demos went left of the block, half went right. A network trained to minimise squared error learns the mean, which is a path no human ever took. A generative method such as flow matching keeps both answers and commits to one of them per chunk.</figcaption>
+  </figure>
+
+  <p><strong>The training recipe, in three lines.</strong> Take a real chunk <i class="v">A</i> from your data and a random chunk ε of the same size. Pick a random mixing amount τ between 0 and 1:</p>
+  <div class="math"><span class="lbl">1 · mix noise and data</span>
+    <i>x</i><sub>τ</sub> = (1 − τ) · ε + τ · <i>A</i></div>
+  <div class="math"><span class="lbl">2 · the direction from noise to data (the "correct velocity")</span>
+    <i>u</i> = <i>A</i> − ε</div>
+  <div class="math"><span class="lbl">3 · loss: how wrong was the predicted velocity v?</span>
+    <i>L</i> = ‖ <i>v</i><sub>θ</sub>( <i>x</i><sub>τ</sub>, τ | images, words, state ) − <i>u</i> ‖²</div>
+  <p>At deployment the model starts from pure noise (τ = 0) and takes 10 steps of size 0.1, each time moving in the direction it predicts: <code>x ← x + 0.1 · v</code>. After 10 steps τ has reached 1 and <i class="v">x</i> is an action chunk.</p>
+
+  <div class="calc" id="flowcalc">
+    <h4><span class="eyebrow">Try it</span> One number, ten steps</h4>
+    <p class="small" style="margin:0">Follow a single number of the chunk, the gripper value. Its demonstrated target is <i class="v">A</i> = 0.8 (normalised). Choose where the noise starts and drag τ.</p>
+    <div class="calc-grid">
+      <label for="fm-eps">Noise start ε <span id="fm-eps-o" class="mono">−1.2</span><input id="fm-eps" type="range" min="-2" max="2" step="0.1" value="-1.2"></label>
+      <label for="fm-tau">Progress τ <span id="fm-tau-o" class="mono">0.3</span><input id="fm-tau" type="range" min="0" max="1" step="0.1" value="0.3"></label>
+    </div>
+    <svg viewBox="0 0 720 110" role="img" aria-label="Number line from minus 2 to plus 2 showing the noise start, the current point and the target 0.8" style="width:100%;height:auto;display:block">
+      <line x1="60" y1="60" x2="660" y2="60" stroke="var(--ink-2)" stroke-width="1.5"/>
+      <g class="mono s dim" text-anchor="middle"><text x="60" y="88">−2</text><text x="210" y="88">−1</text><text x="360" y="88">0</text><text x="510" y="88">+1</text><text x="660" y="88">+2</text></g>
+      <g stroke="var(--ink-2)"><line x1="60" y1="55" x2="60" y2="65"/><line x1="210" y1="55" x2="210" y2="65"/><line x1="360" y1="55" x2="360" y2="65"/><line x1="510" y1="55" x2="510" y2="65"/><line x1="660" y1="55" x2="660" y2="65"/></g>
+      <g id="fm-ghosts"></g>
+      <circle id="fm-start" cx="180" cy="60" r="7" fill="none" stroke="var(--ink-2)" stroke-width="2"/>
+      <text id="fm-start-t" x="180" y="38" text-anchor="middle" class="s dim">noise ε</text>
+      <circle cx="480" cy="60" r="8" fill="none" stroke="var(--good)" stroke-width="2.5"/>
+      <text x="480" y="38" text-anchor="middle" class="s" fill="var(--good)">target A = 0.8</text>
+      <circle id="fm-dot" cx="270" cy="60" r="8" class="fa"/>
+    </svg>
+    <div class="out">
+      <div><span class="ov" id="fm-x">−0.60</span><span class="ol">x<sub>τ</sub> = (1 − τ)·ε + τ·A</span></div>
+      <div><span class="ov" id="fm-u">2.00</span><span class="ol">correct velocity u = A − ε (the same at every step)</span></div>
+      <div><span class="ov" id="fm-step">0.20</span><span class="ol">distance moved per step = 0.1 × u</span></div>
+    </div>
+    <p class="verdict" id="fm-verdict">After 3 of 10 steps the value has moved from −1.20 to −0.60. If the network predicts u perfectly, it lands exactly on 0.8 at τ = 1.</p>
+  </div>
+
+  <div class="tbl"><table>
+    <thead><tr><th>Step</th><th class="num"><span class="nt">τ</span></th><th class="num"><span class="nt">x</span> (<span class="nt">ε</span> = −1.2, <span class="nt">A</span> = 0.8)</th></tr></thead>
+    <tbody>
+      <tr><td>start (pure noise)</td><td class="num">0.0</td><td class="num">−1.20</td></tr>
+      <tr><td>after step 1</td><td class="num">0.1</td><td class="num">−1.00</td></tr>
+      <tr><td>after step 3</td><td class="num">0.3</td><td class="num">−0.60</td></tr>
+      <tr><td>after step 5</td><td class="num">0.5</td><td class="num">−0.20</td></tr>
+      <tr><td>after step 10 (finished)</td><td class="num">1.0</td><td class="num">0.80</td></tr>
+    </tbody></table></div>
+  <p class="small muted">In the real model the velocity is not known; the network predicts it from the images, words and state, for all 300 numbers at once. Different noise starts can end in different valleys, which is how one model can hold both "go left" and "go right".</p>
+
+  <h3>Idea 4 · Attention: how a word picks an object</h3>
+  <p>Inside the backbone, each token asks every other token "how relevant are you to me?". The answer is a score; the scores are turned into weights that add up to 1 using <strong>softmax</strong>:</p>
+  <div class="math"><span class="lbl">attention weights</span>
+    <i>w</i><sub><i>i</i></sub> = <span class="frac"><span><i>e</i><sup><i>s</i><sub><i>i</i></sub></sup></span><span>Σ<sub><i>j</i></sub> <i>e</i><sup><i>s</i><sub><i>j</i></sub></sup></span></span></div>
+  <p>Worked example: the word token "red" scores three image patches.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Image patch</th><th class="num">score <span class="nt">s</span></th><th class="num"><span class="nt">e<sup>s</sup></span></th><th class="num">weight <span class="nt">w</span></th></tr></thead>
+    <tbody>
+      <tr class="hl"><td>red cube</td><td class="num">2.0</td><td class="num">7.39</td><td class="num">0.73</td></tr>
+      <tr><td>blue cube</td><td class="num">0.5</td><td class="num">1.65</td><td class="num">0.16</td></tr>
+      <tr><td>bin</td><td class="num">0.1</td><td class="num">1.11</td><td class="num">0.11</td></tr>
+      <tr><td>sum</td><td class="num"></td><td class="num">10.14</td><td class="num">1.00</td></tr>
+    </tbody></table></div>
+  <p>73% of what "red" passes on comes from the red cube's patch, so the action expert receives features centred on the red cube. Change the word to "blue" and the weights shift to the blue cube. <strong>This only works if, during fine-tuning, the word actually decided which cube was correct.</strong> Stage 3 shows how to make sure of that.</p>
+</section>
+
+<!-- ===================== STAGE 1 ===================== -->
+<section class="part" id="s1">
+  <div class="part-head"><span class="tag">Stage 1 of 6</span><span class="eyebrow">System preparation</span></div>
+  <h2>Prepare the rig</h2>
+  <p class="goal"><b>Output of this stage:</b> two assembled arms, two rigidly mounted cameras, a marked workspace and a computer that can talk to all four devices.</p>
+
+  <figure>
+  <div class="fig">
+  <svg viewBox="0 0 960 460" role="img" aria-labelledby="fb-t">
+    <title id="fb-t">Top view of the bench: follower arm at the back, five taped start positions in an arc, a red and a blue cube, a bin on the right, the leader arm on the left for the operator, the front camera facing the robot, diffuse light, and a PC connected by USB.</title>
+    <rect x="40" y="30" width="880" height="370" rx="12" class="box2"/>
+    <text x="900" y="390" text-anchor="end" class="s mono dim">matte, plain table cover</text>
+    <!-- follower -->
+    <circle cx="480" cy="84" r="24" class="act"/>
+    <path d="M480,84 L480,170 L472,214" stroke="var(--ink-2)" stroke-width="10" stroke-linecap="round" fill="none"/>
+    <path d="M464,222 l-6,14 M480,222 l6,14" stroke="var(--ink)" stroke-width="4" stroke-linecap="round"/>
+    <rect x="484" y="196" width="16" height="11" class="fv"/>
+    <text x="514" y="80" class="m">Follower arm</text><text x="514" y="98" class="s dim">the robot that is filmed</text>
+    <text x="506" y="206" class="s tv">wrist camera</text>
+    <rect x="566" y="46" width="52" height="22" rx="3" class="box"/><text x="592" y="62" text-anchor="middle" class="s mono">PSU</text>
+    <!-- positions -->
+    <g fill="none" stroke="var(--accent)" stroke-dasharray="4 3" stroke-width="1.5">
+      <rect x="317" y="247" width="26" height="26"/><rect x="387" y="287" width="26" height="26"/><rect x="467" y="302" width="26" height="26"/><rect x="547" y="287" width="26" height="26"/><rect x="617" y="247" width="26" height="26"/></g>
+    <g class="s mono tk" text-anchor="middle"><text x="330" y="290">1</text><text x="400" y="330">2</text><text x="480" y="345">3</text><text x="560" y="330">4</text><text x="630" y="290">5</text></g>
+    <rect x="391" y="291" width="18" height="18" class="fred"/>
+    <rect x="551" y="291" width="18" height="18" class="fblue"/>
+    <!-- bin -->
+    <rect x="720" y="120" width="86" height="62" rx="4" fill="none" stroke="var(--ink)" stroke-width="2"/>
+    <text x="763" y="156" text-anchor="middle" class="m">Bin</text>
+    <!-- leader -->
+    <circle cx="160" cy="104" r="22" class="act"/>
+    <path d="M160,104 L176,170 L200,200" stroke="var(--ink-2)" stroke-width="9" stroke-linecap="round" fill="none"/>
+    <text x="214" y="132" class="m">Leader arm</text><text x="214" y="150" class="s dim">you move this one</text>
+    <circle cx="96" cy="200" r="14" fill="none" stroke="var(--ink-2)" stroke-width="2"/><text x="96" y="232" text-anchor="middle" class="s dim">operator</text>
+    <rect x="196" y="46" width="52" height="22" rx="3" class="box"/><text x="222" y="62" text-anchor="middle" class="s mono">PSU</text>
+    <!-- front cam -->
+    <path d="M480,374 L290,180 M480,374 L670,180" stroke="var(--vision)" stroke-dasharray="3 5" fill="none"/>
+    <rect x="464" y="366" width="32" height="20" rx="3" class="fv"/>
+    <text x="506" y="380" class="s tv">front camera on a fixed mount</text>
+    <!-- light -->
+    <circle cx="870" cy="70" r="14" class="act"/>
+    <g stroke="var(--action)" stroke-width="2"><line x1="870" y1="44" x2="870" y2="36"/><line x1="896" y1="70" x2="904" y2="70"/><line x1="888" y1="52" x2="894" y2="46"/><line x1="852" y1="52" x2="846" y2="46"/></g>
+    <text x="846" y="104" text-anchor="end" class="s">diffuse light, same every session</text>
+    <!-- PC -->
+    <rect x="70" y="300" width="150" height="70" rx="6" class="box"/>
+    <text x="145" y="331" text-anchor="middle" class="m">PC / laptop</text><text x="145" y="351" text-anchor="middle" class="s dim">4 USB devices</text>
+    <g stroke="var(--ink-2)" stroke-dasharray="2 4" fill="none" stroke-width="1.5"><path d="M220,320 C320,300 380,140 458,96"/><path d="M150,300 L158,128"/><path d="M220,355 C330,380 420,378 462,376"/></g>
+    <!-- legend -->
+    <g transform="translate(40,430)">
+      <rect width="12" height="12" class="fv"/><text x="18" y="11" class="s">cameras</text>
+      <rect x="100" width="12" height="12" class="fa"/><text x="118" y="11" class="s">arms and light</text>
+      <rect x="230" width="12" height="12" fill="none" stroke="var(--accent)" stroke-dasharray="3 2"/><text x="248" y="11" class="s">taped start positions 1–5</text>
+      <line x1="430" y1="6" x2="460" y2="6" stroke="var(--ink-2)" stroke-dasharray="2 4" stroke-width="1.5"/><text x="468" y="11" class="s">USB cable</text>
+    </g>
+  </svg>
+  </div>
+  <figcaption><b>Figure 4. Bench layout, seen from above.</b> Both cubes are on the table in every episode; the instruction decides which one goes in the bin. The front camera must see the gripper, both cubes and the bin at once.</figcaption>
+  </figure>
+
+  <h3>Checklist</h3>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Item</th><th>What to use</th><th>Why it matters</th></tr></thead>
+    <tbody>
+      <tr><td><b>Follower arm</b></td><td>SO-101, 6 × Feetech STS3215 servos, all 1:345 gearing</td><td>The robot the model will control.</td></tr>
+      <tr><td><b>Leader arm</b></td><td>SO-101 leader, mixed gearing (1:191, 1:345, 1:147) so it is light to move by hand</td><td>Your hand motion on it becomes the <span class="t-act">action</span> label.</td></tr>
+      <tr><td><b>Power</b></td><td>The supply specified for your servo version: 5 V for the standard 7.4 V servos, 12 V only for the 12 V "Pro" servos</td><td>Wrong voltage overheats or destroys servos within minutes.</td></tr>
+      <tr><td><b>Front camera</b></td><td>USB webcam, 640 × 480 at 30 fps, on a clamp or 3D-printed mount</td><td>Sees the whole scene: where the cubes and the bin are.</td></tr>
+      <tr><td><b>Wrist camera</b></td><td>Small USB camera on the gripper, showing both fingertips</td><td>Sees the last centimetres of the grasp, where most failures happen.</td></tr>
+      <tr><td><b>Workspace</b></td><td>Plain matte cover, 5 taped start positions, a bin, a red and a blue cube</td><td>Repeatable positions make the data balanced and the evaluation fair.</td></tr>
+      <tr><td><b>Lighting</b></td><td>A fixed lamp; block window light</td><td>Sunlight changes through the day; the model sees that as a new scene.</td></tr>
+      <tr><td><b>Recording PC</b></td><td>Any laptop with enough USB ports (USB 3 preferred); Ubuntu 22.04/24.04 is the smoothest</td><td>Runs teleoperation and saves the video.</td></tr>
+      <tr><td><b>Training GPU</b></td><td>16–24 GB VRAM for SmolVLA comfort; a cloud A100 or Colab if your laptop has 8 GB</td><td>See the memory maths in Stage 4.</td></tr>
+    </tbody></table></div>
+
+  <h3>Steps</h3>
+  <ol class="steps">
+    <li><b>Assemble and label.</b> Put a sticker "LEADER" / "FOLLOWER" on each arm and on each USB cable. Half of all beginner errors are the two arms swapped.</li>
+    <li><b>Mount the front camera rigidly.</b> Screw or clamp it; do not rest it on a book. Mark its position on the table with tape so you can tell if it moved.</li>
+    <li><b>Mount the wrist camera</b> so that both fingertips and a cube between them are in view. Route the cable along the arm with slack at every joint, so it never pulls when the wrist rolls.</li>
+    <li><b>Tape the five start positions</b> in an arc the arm can reach comfortably, plus the bin location.</li>
+    <li><b>Fix the lighting.</b> Close blinds, switch on the same lamp each session, and check for strong shadows of the arm across the cubes.</li>
+    <li><b>Plug cameras into separate USB ports</b> (not one hub) so the two video streams do not compete for bandwidth.</li>
+  </ol>
+
+  <h3>What goes wrong here, and how to fix it</h3>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Challenge</th><th>What you see</th><th>Why</th><th>How to overcome it</th></tr></thead>
+    <tbody>
+      <tr><td><b>Wrong power supply</b></td><td>Servos hot to touch, smell, then a dead motor</td><td>12 V on 7.4 V servos</td><td>Check the servo label and kit BOM before plugging in. Unplug power whenever you leave the bench.</td></tr>
+      <tr><td><b>Camera moved between sessions</b></td><td>Policy worked yesterday, misses by a few cm today</td><td>The model learned pixel positions from the old view</td><td>Rigid mount, tape outline, and a reference photo taken from the camera at the start of every session.</td></tr>
+      <tr><td><b>Dropped frames</b></td><td>Jerky video, warnings about fps</td><td>Two cameras on one USB hub, or high resolution</td><td>Separate ports, 640 × 480, 30 fps.</td></tr>
+      <tr><td><b>Lighting drift</b></td><td>Success rate falls in the afternoon</td><td>Window light changes colours and shadows</td><td>Fixed lamp, blinds closed. Later, record some episodes under deliberately varied light.</td></tr>
+      <tr><td><b>Wrist cable snags</b></td><td>Camera disconnects mid-episode</td><td>Cable too short around the wrist roll</td><td>Leave a service loop; test full wrist roll before recording.</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ===================== STAGE 2 ===================== -->
+<section class="part" id="s2">
+  <div class="part-head"><span class="tag">Stage 2 of 6</span><span class="eyebrow">Software preparation</span></div>
+  <h2>Install the software</h2>
+  <p class="goal"><b>Output of this stage:</b> a Python environment where <code>lerobot-teleoperate</code> moves the follower from the leader while both camera feeds show on screen.</p>
+
+  <p>Think of the software as layers. Each layer depends on the one below; most installation problems are a mismatch between two neighbouring layers.</p>
+  <div class="stack" role="list" aria-label="Software stack, top to bottom">
+    <div class="layer top" role="listitem"><span class="ln">Your work</span><span class="what">Dataset <code>HF_USER/so101_redblue_bin</code> and model <code>HF_USER/smolvla_redblue</code> on the Hugging Face Hub</span></div>
+    <div class="layer" role="listitem"><span class="ln">LeRobot CLI</span><span class="what"><code>lerobot-find-port</code> · <code>-setup-motors</code> · <code>-calibrate</code> · <code>-teleoperate</code> · <code>-record</code> · <code>-train</code> · <code>-rollout</code></span></div>
+    <div class="layer" role="listitem"><span class="ln">LeRobot extras</span><span class="what"><code>feetech</code> (servo driver) · <code>smolvla</code> (model code) · training dependencies</span></div>
+    <div class="layer" role="listitem"><span class="ln">Deep learning</span><span class="what">PyTorch ≥ 2.7 with a CUDA build that matches your GPU (RTX 50-series needs a CUDA 12.8 build)</span></div>
+    <div class="layer" role="listitem"><span class="ln">Python env</span><span class="what">Python 3.12 (required by LeRobot v0.5 and later), plus <code>ffmpeg</code> for video</span></div>
+    <div class="layer" role="listitem"><span class="ln">Operating system</span><span class="what">Ubuntu 22.04 / 24.04 recommended; NVIDIA driver; USB serial access</span></div>
+    <div class="layer side" role="listitem"><span class="ln">Separate env</span><span class="what">Isaac Sim 5.1 / Isaac Lab use Python 3.11. Keep them in their own environment; never install LeRobot into it.</span></div>
+  </div>
+
+  <h3>Steps</h3>
+  <ol class="steps">
+    <li><b>Create a fresh environment</b> just for LeRobot.
+<pre><code>conda create -y -n lerobot python=3.12
+conda activate lerobot
+conda install -y -c conda-forge ffmpeg</code></pre></li>
+    <li><b>Install LeRobot from source</b> with the servo and SmolVLA extras.
+<pre><code>git clone https://github.com/huggingface/lerobot.git
+cd lerobot
+pip install -e ".[feetech,smolvla]"
+<span class="c"># v0.6 moved training/dataset dependencies into extras.
+# If lerobot-train reports missing packages, add the extra named
+# in the installation guide for your version, e.g. ".[feetech,smolvla,training]"</span></code></pre></li>
+    <li><b>Check that PyTorch sees the GPU.</b>
+<pre><code>python -c "import torch; print(torch.__version__, torch.cuda.is_available())"</code></pre>
+    If this prints <code>False</code>, reinstall PyTorch using the command for your CUDA version from pytorch.org before going further.</li>
+    <li><b>Log in to the Hugging Face Hub</b> (needs a token with write access).
+<pre><code>hf auth login
+export HF_USER=$(NO_COLOR=1 hf auth whoami | awk -F': *' 'NR==1 {print $2}')</code></pre></li>
+    <li><b>Find each arm's port.</b> Run the tool, unplug the cable when asked, and note the port that disappears. Do it once for each arm.
+<pre><code>lerobot-find-port
+<span class="c"># Linux only, if you get "permission denied":</span>
+sudo chmod 666 /dev/ttyACM0 /dev/ttyACM1</code></pre></li>
+    <li><b>Save your rig settings in one file</b> so every later command uses the same values. This single habit prevents most "it worked yesterday" problems.
+<pre><code><span class="c"># rig.env   →  load it in every new terminal with:  source rig.env</span>
+export FOLLOWER_PORT=/dev/ttyACM0
+export LEADER_PORT=/dev/ttyACM1
+export FOLLOWER_ID=so101_follower_A
+export LEADER_ID=so101_leader_A
+export FRONT_CAM=0
+export WRIST_CAM=2</code></pre></li>
+    <li><b>Set motor IDs</b> (one time per arm; follow the prompts and connect one motor at a time).
+<pre><code>lerobot-setup-motors --robot.type=so101_follower --robot.port=$FOLLOWER_PORT
+lerobot-setup-motors --teleop.type=so101_leader  --teleop.port=$LEADER_PORT</code></pre></li>
+    <li><b>Calibrate both arms.</b> Move every joint to the middle of its range, press Enter, then sweep each joint through its full range. The <code>id</code> names the calibration file; keep it the same forever.
+<pre><code>lerobot-calibrate --robot.type=so101_follower --robot.port=$FOLLOWER_PORT --robot.id=$FOLLOWER_ID
+lerobot-calibrate --teleop.type=so101_leader  --teleop.port=$LEADER_PORT  --teleop.id=$LEADER_ID</code></pre></li>
+    <li><b>Find the camera indexes</b> and put them in <code>rig.env</code>.
+<pre><code>lerobot-find-cameras opencv</code></pre></li>
+    <li><b>Teleoperate with both cameras on screen.</b> If this works smoothly, Stage 2 is done.
+<pre><code>lerobot-teleoperate \
+  --robot.type=so101_follower --robot.port=$FOLLOWER_PORT --robot.id=$FOLLOWER_ID \
+  --robot.cameras="{ front: {type: opencv, index_or_path: $FRONT_CAM, width: 640, height: 480, fps: 30}, wrist: {type: opencv, index_or_path: $WRIST_CAM, width: 640, height: 480, fps: 30}}" \
+  --teleop.type=so101_leader --teleop.port=$LEADER_PORT --teleop.id=$LEADER_ID \
+  --display_data=true</code></pre></li>
+  </ol>
+  <div class="note"><span class="label">On Windows laptops</span><p>Ports appear as <code>COM3</code>, <code>COM4</code> instead of <code>/dev/ttyACM*</code>, and you set variables with <code>set</code> (cmd) or <code>$env:</code> (PowerShell) instead of <code>export</code>. Teleoperation and recording can work on Windows, but video encoding and keyboard shortcuts give more trouble; keep one Ubuntu machine in the lab as the reference setup.</p></div>
+
+  <h3>What goes wrong here, and how to fix it</h3>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Challenge</th><th>What you see</th><th>Why</th><th>How to overcome it</th></tr></thead>
+    <tbody>
+      <tr><td><b>Python version clash</b></td><td>Install errors mentioning <code>requires-python</code></td><td>LeRobot ≥ v0.5 needs Python 3.12; Isaac Sim 5.1 needs 3.11</td><td>Two separate environments. Never mix them.</td></tr>
+      <tr><td><b>GPU not used</b></td><td><code>cuda.is_available()</code> is False; training is very slow</td><td>CPU-only PyTorch, or a CUDA build too old for the GPU</td><td>Install the PyTorch wheel matching your driver (cu128 for RTX 50-series).</td></tr>
+      <tr><td><b>Ports swap after reboot</b></td><td>Follower stays still, leader twitches</td><td>The OS numbers USB devices in plug-in order</td><td>Re-run <code>lerobot-find-port</code> at the start of each session, or add a Linux udev rule that gives each arm a fixed name.</td></tr>
+      <tr><td><b>Calibration mismatch</b></td><td>Follower jumps to a strange pose when started</td><td>A different <code>--robot.id</code> loaded a different (or no) calibration</td><td>Use the IDs from <code>rig.env</code> in every command.</td></tr>
+      <tr><td><b>Camera index changes</b></td><td>Front and wrist images swapped</td><td>Indexes depend on plug-in order</td><td>Check with <code>lerobot-find-cameras</code> each session; look at the preview before recording.</td></tr>
+      <tr><td><b>Version drift</b></td><td>A tutorial's flag is "unrecognised"</td><td>LeRobot renames options between releases (v0.6 renamed several)</td><td>Run <code>lerobot-record --help</code> and trust it over any web page, including this one.</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ===================== STAGE 3 ===================== -->
+<section class="part" id="s3">
+  <div class="part-head"><span class="tag">Stage 3 of 6</span><span class="eyebrow">Data</span></div>
+  <h2>Collect the data</h2>
+  <p class="goal"><b>Output of this stage:</b> a LeRobot dataset of about 60 clean episodes, balanced across two instructions and five start positions, checked by eye.</p>
+
+  <h3>3.1 What one recorded frame contains</h3>
+  <p>LeRobot records 30 frames per second. Every frame stores the same fields:</p>
+  <div class="record">
+    <div class="field vis"><span class="fn">observation.images.front</span><span class="fd">480 × 640 colour image (stored inside an MP4)</span></div>
+    <div class="field vis"><span class="fn">observation.images.wrist</span><span class="fd">480 × 640 colour image</span></div>
+    <div class="field st"><span class="fn">observation.state</span><span class="fd">6 numbers: where the follower's joints <em>are</em></span></div>
+    <div class="field act"><span class="fn">action</span><span class="fd">6 numbers: where the leader told the follower to <em>go</em></span></div>
+    <div class="field lang"><span class="fn">task</span><span class="fd">the instruction text for this episode</span></div>
+    <div class="field"><span class="fn">timestamp · frame_index · episode_index</span><span class="fd">bookkeeping</span></div>
+  </div>
+  <p><strong>State versus action</strong> is the most important pair. The state is what the robot measured; the action is what your hand on the leader commanded at that instant. The model learns "given what I see and where I am, where should I go next".</p>
+  <p>On disk the dataset uses the LeRobotDataset format: tables of numbers in Parquet files, video per camera in MP4, and a <code>meta/</code> folder.</p>
+<pre><code>~/.cache/huggingface/lerobot/HF_USER/so101_redblue_bin/
+├── meta/
+│   ├── info.json        <span class="c"># fps, features, camera names, robot type</span>
+│   ├── stats.json       <span class="c"># μ and σ for every feature (Part A3, Idea 2)</span>
+│   ├── tasks.parquet    <span class="c"># the instruction strings</span>
+│   └── episodes/        <span class="c"># where each episode starts and ends</span>
+├── data/                <span class="c"># state, action, indexes (Parquet)</span>
+└── videos/
+    ├── observation.images.front/
+    └── observation.images.wrist/</code></pre>
+
+  <h3>3.2 Design the dataset before you record</h3>
+  <p>Data design is where VLA projects succeed or fail. Three rules:</p>
+  <ol class="steps">
+    <li><b>Cover the space evenly.</b> The SmolVLA authors recorded 5 cube positions × 10 episodes. A 25-episode version of the same task performed poorly. Start at 50 or more.</li>
+    <li><b>One strategy per situation.</b> Always approach from the same side, always grasp the same way. Two styles for the same situation is Figure 3's averaging trap in your own data.</li>
+    <li><b>Make the instruction necessary.</b> Put both cubes on the table in every episode and let the sentence decide which one moves. This is the central failure mode of VLA training, explained next.</li>
+  </ol>
+
+  <div class="failure" id="deaf">
+    <span class="eyebrow">Central failure mode</span>
+    <h3>The robot that does not listen</h3>
+    <p>A network only learns to use an input if that input helps it reduce the loss. If every episode in your dataset says "Put the red cube in the bin", the sentence is identical in all 36,000 frames. It carries no information about what the arm should do, so training gives the model no reason to look at it. The result is a VLA that <strong>ignores language</strong>: change the instruction to "blue" at test time and it still reaches for red, or for whichever cube is nearest.</p>
+    <p>A simple test, before you record anything: <strong>cover up the instruction. Could a human still do every episode perfectly from the images alone?</strong> If yes, the model will learn to ignore the instruction.</p>
+    <div class="tbl"><table>
+      <thead><tr><th>Dataset design</th><th>Images alone tell you the target?</th><th>Does the model need the words?</th></tr></thead>
+      <tbody>
+        <tr><td>One cube, one instruction</td><td>Yes</td><td><span class="pill bad">No — it will ignore them</span></td></tr>
+        <tr><td>Red and blue cubes, instruction always "red"</td><td>Yes (it is always red)</td><td><span class="pill bad">No — it will ignore them</span></td></tr>
+        <tr><td>Red and blue cubes, "red" in half the episodes and "blue" in the other half</td><td>No (a 50/50 guess)</td><td><span class="pill good">Yes — it must read them</span></td></tr>
+      </tbody></table></div>
+    <p style="margin-bottom:0"><strong>Fix:</strong> paired scenes (both cubes, every episode), equal numbers of each instruction, and the cubes' left/right placement swapped across episodes so that "red" cannot be learned as "the left one". You will test for this failure with the instruction-swap test in Stage 6.</p>
+  </div>
+
+  <h4>A recording plan that satisfies all three rules</h4>
+  <div class="tbl"><table>
+    <thead><tr><th>Block</th><th>Instruction (exact string)</th><th>Target cube at</th><th>Other cube at</th><th class="num">Episodes</th></tr></thead>
+    <tbody>
+      <tr><td>R1–R5</td><td><code>Put the red cube in the bin</code></td><td>each of positions 1–5</td><td>a different position, varied</td><td class="num">5 × 6 = 30</td></tr>
+      <tr><td>B1–B5</td><td><code>Put the blue cube in the bin</code></td><td>each of positions 1–5</td><td>a different position, varied</td><td class="num">5 × 6 = 30</td></tr>
+      <tr class="hl"><td colspan="4"><b>Total</b></td><td class="num">60</td></tr>
+    </tbody></table></div>
+  <p class="small muted">Use one exact instruction string per task and reuse it at deployment. If you want the robot to understand other phrasings ("drop the red block into the container"), you must also record with those phrasings.</p>
+
+  <div class="calc" id="datacalc">
+    <h4><span class="eyebrow">Calculator</span> Data budget</h4>
+    <p class="small" style="margin:0">How much data you will collect, how long recording takes, and how many times training will see each frame.</p>
+    <div class="calc-grid">
+      <label for="d-ep">Episodes<input id="d-ep" type="number" min="1" value="60"></label>
+      <label for="d-sec">Avg. seconds per episode<input id="d-sec" type="number" min="1" value="20"></label>
+      <label for="d-reset">Reset seconds<input id="d-reset" type="number" min="0" value="15"></label>
+      <label for="d-fps">FPS<input id="d-fps" type="number" min="1" value="30"></label>
+      <label for="d-cam">Cameras<input id="d-cam" type="number" min="1" value="2"></label>
+      <label for="d-steps">Training steps<input id="d-steps" type="number" min="1" value="20000"></label>
+      <label for="d-bs">Batch size<input id="d-bs" type="number" min="1" value="64"></label>
+    </div>
+    <div class="out">
+      <div><span class="ov" id="d-frames">36,000</span><span class="ol">frames = episodes × seconds × fps</span></div>
+      <div><span class="ov" id="d-imgs">72,000</span><span class="ol">camera images = frames × cameras</span></div>
+      <div><span class="ov" id="d-demo">20 min</span><span class="ol">of demonstration</span></div>
+      <div><span class="ov" id="d-session">35 min</span><span class="ol">recording time incl. resets (plus breaks)</span></div>
+      <div><span class="ov" id="d-pass">35.6×</span><span class="ol">times each frame is seen = steps × batch ÷ frames</span></div>
+    </div>
+    <p class="verdict" id="d-verdict">Each frame is seen about 36 times. That is normal for fine-tuning on a small dataset; watch for memorising (Stage 4).</p>
+  </div>
+
+  <h3>3.3 Record</h3>
+  <ol class="steps">
+    <li><b>Record the first block.</b> Episode length 25 s gives you room to finish; reset time 15 s lets you place the cubes for the next episode.
+<pre><code>source rig.env
+lerobot-record \
+  --robot.type=so101_follower --robot.port=$FOLLOWER_PORT --robot.id=$FOLLOWER_ID \
+  --robot.cameras="{ front: {type: opencv, index_or_path: $FRONT_CAM, width: 640, height: 480, fps: 30}, wrist: {type: opencv, index_or_path: $WRIST_CAM, width: 640, height: 480, fps: 30}}" \
+  --teleop.type=so101_leader --teleop.port=$LEADER_PORT --teleop.id=$LEADER_ID \
+  --display_data=true \
+  --dataset.repo_id=${HF_USER}/so101_redblue_bin \
+  --dataset.single_task="Put the red cube in the bin" \
+  --dataset.num_episodes=6 \
+  --dataset.episode_time_s=25 \
+  --dataset.reset_time_s=15</code></pre></li>
+    <li><b>Use the keyboard while recording.</b> <code>→</code> (or <code>n</code>) ends the episode early when the cube is in the bin; <code>←</code> (or <code>r</code>) throws away the episode and records it again; <code>Esc</code> (or <code>q</code>) stops, encodes the videos and uploads.</li>
+    <li><b>Add the next blocks to the same dataset</b> with <code>--resume=true</code>. <code>num_episodes</code> now means "how many more", and you change the instruction for the blue blocks.
+<pre><code>lerobot-record ...same robot/teleop/camera flags... \
+  --dataset.repo_id=${HF_USER}/so101_redblue_bin \
+  --dataset.root=~/.cache/huggingface/lerobot/${HF_USER}/so101_redblue_bin \
+  --resume=true \
+  --dataset.single_task="Put the blue cube in the bin" \
+  --dataset.num_episodes=6</code></pre></li>
+    <li><b>Alternate red and blue blocks</b> through the session rather than all red first. If the light or your skill changes over two hours, both tasks are affected equally.</li>
+    <li><b>Look at your data.</b> Replay a few episodes per block and check that the action traces are smooth and the images are sharp.
+<pre><code>lerobot-dataset-viz --repo-id ${HF_USER}/so101_redblue_bin --episode-index 0</code></pre></li>
+  </ol>
+
+  <div class="tbl wide"><table>
+    <thead><tr><th>A good demonstration</th><th>A bad demonstration</th></tr></thead>
+    <tbody>
+      <tr><td>Smooth, steady speed from start to finish</td><td>Hesitates, stops halfway, starts again</td></tr>
+      <tr><td>One clean grasp</td><td>Misses, re-grasps, nudges the cube</td></tr>
+      <tr><td>Same approach direction as all other episodes</td><td>Sometimes from the left, sometimes from above</td></tr>
+      <tr><td>Ends with the cube in the bin and the arm back at a rest pose</td><td>Ends with the arm wherever it stopped</td></tr>
+      <tr><td>The cube is visible in the front camera the whole time</td><td>Your hand or the arm hides the cube</td></tr>
+    </tbody></table></div>
+  <p class="small muted">You can only teach what is in the camera images. A good check: could you do the task yourself while looking only at the two camera feeds?</p>
+
+  <div class="note"><span class="label">Optional · simulated data</span><p>The imitation-learning lab used a leader arm to drive the simulated SO-101 in Isaac Lab. Those episodes can be exported in LeRobot format and added to the real ones. Rendered images never look exactly like your webcam, so keep real episodes as the core of the dataset and treat simulation as extra variety, then check on the real arm whether it helped.</p></div>
+
+  <h3>What goes wrong here, and how to fix it</h3>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Challenge</th><th>What you see later</th><th>Why</th><th>How to overcome it</th></tr></thead>
+    <tbody>
+      <tr><td><b>Language ignored</b></td><td>Picks the same cube whatever you say</td><td>The instruction never decided the action</td><td>Paired-scene design, balanced instructions (box above).</td></tr>
+      <tr><td><b>Too few episodes</b></td><td>Works only at the exact taught spots</td><td>The model has not seen enough variety</td><td>≥ 50 episodes, ≥ 10 per position (or 6 per position per task).</td></tr>
+      <tr><td><b>Inconsistent strategy</b></td><td>Arm hesitates midway, or aims between two paths</td><td>Averaging between different styles</td><td>Agree on one approach before recording; one operator per dataset if possible.</td></tr>
+      <tr><td><b>Failed demos kept</b></td><td>Robot copies your mistakes (re-grasps, nudging)</td><td>Bad episodes are training data too</td><td>Press <code>←</code> to redo during recording; delete bad episodes afterwards with LeRobot's dataset editing tool.</td></tr>
+      <tr><td><b>Recalibrated mid-dataset</b></td><td>A constant offset at contact</td><td>Same pose, different numbers (Idea 2)</td><td>Calibrate once per dataset. If you must recalibrate, start a new dataset.</td></tr>
+      <tr><td><b>Too much variety too soon</b></td><td>Nothing works well</td><td>The task became harder than the data can teach</td><td>Get reliable grasping first, then add new positions, lighting or distractors step by step.</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ===================== STAGE 4 ===================== -->
+<section class="part" id="s4">
+  <div class="part-head"><span class="tag">Stage 4 of 6</span><span class="eyebrow">Training</span></div>
+  <h2>Train (fine-tune SmolVLA)</h2>
+  <p class="goal"><b>Output of this stage:</b> two or three saved checkpoints of a SmolVLA model fine-tuned on your dataset, and a training log.</p>
+
+  <p>You do not train a VLA from zero. You start from <code>lerobot/smolvla_base</code>, which has already been pre-trained, and <strong>fine-tune</strong> it: a short extra training run that adapts it to your arm, your cameras and your two tasks.</p>
+
+  <figure>
+  <div class="fig">
+  <svg viewBox="0 0 960 200" role="img" aria-labelledby="ft-t">
+    <title id="ft-t">One training step: sample a batch, normalise, mix with noise, predict velocity, compute loss, update the action expert; repeat 20,000 times.</title>
+    <defs><marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+    <g>
+      <rect x="20" y="30" width="140" height="100" rx="8" class="box"/>
+      <text x="90" y="62" text-anchor="middle" class="m">1 · Sample</text><text x="90" y="84" text-anchor="middle" class="s dim">64 random frames</text><text x="90" y="102" text-anchor="middle" class="s dim">+ their next 50 actions</text>
+      <rect x="176" y="30" width="140" height="100" rx="8" class="st"/>
+      <text x="246" y="62" text-anchor="middle" class="m">2 · Normalise</text><text x="246" y="84" text-anchor="middle" class="s dim">state and actions</text><text x="246" y="102" text-anchor="middle" class="s mono">(a − μ) / σ</text>
+      <rect x="332" y="30" width="140" height="100" rx="8" class="act"/>
+      <text x="402" y="62" text-anchor="middle" class="m">3 · Add noise</text><text x="402" y="84" text-anchor="middle" class="s dim">random τ and ε</text><text x="402" y="102" text-anchor="middle" class="s mono">(1−τ)ε + τA</text>
+      <rect x="488" y="30" width="140" height="100" rx="8" class="acc"/>
+      <text x="558" y="62" text-anchor="middle" class="m">4 · Predict</text><text x="558" y="84" text-anchor="middle" class="s dim">backbone + expert</text><text x="558" y="102" text-anchor="middle" class="s dim">give velocity v</text>
+      <rect x="644" y="30" width="140" height="100" rx="8" class="box"/>
+      <text x="714" y="62" text-anchor="middle" class="m">5 · Loss</text><text x="714" y="84" text-anchor="middle" class="s mono">‖v − (A − ε)‖²</text><text x="714" y="102" text-anchor="middle" class="s dim">one error number</text>
+      <rect x="800" y="30" width="140" height="100" rx="8" class="act"/>
+      <text x="870" y="62" text-anchor="middle" class="m">6 · Update</text><text x="870" y="84" text-anchor="middle" class="s dim">AdamW nudges the</text><text x="870" y="102" text-anchor="middle" class="s dim">expert's weights</text>
+    </g>
+    <g><path d="M160,80 L174,80" class="ln" marker-end="url(#ah3)"/><path d="M316,80 L330,80" class="ln" marker-end="url(#ah3)"/><path d="M472,80 L486,80" class="ln" marker-end="url(#ah3)"/><path d="M628,80 L642,80" class="ln" marker-end="url(#ah3)"/><path d="M784,80 L798,80" class="ln" marker-end="url(#ah3)"/></g>
+    <path d="M870,132 L870,166 L90,166 L90,136" class="ln" marker-end="url(#ah3)"/>
+    <text x="480" y="188" text-anchor="middle" class="s">repeat for 20,000 steps (each step sees a new random batch)</text>
+  </svg>
+  </div>
+  <figcaption><b>Figure 5. One training step.</b> Steps 3 to 5 are exactly the flow-matching recipe from Part A3. The frozen backbone still runs in step 4; it just does not get updated in step 6.</figcaption>
+  </figure>
+
+  <h3>Choose where to train: the memory maths</h3>
+  <p>Training needs GPU memory for the weights, and, for every weight that is being trained, its gradient and two optimiser values. A rule of thumb for the AdamW optimiser:</p>
+  <div class="math"><span class="lbl">rule of thumb, before activations</span>
+    memory ≈ trainable × 16 bytes + frozen × (2 to 4) bytes</div>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Set-up</th><th class="num">Trainable</th><th class="num">Frozen</th><th class="num">Estimate</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr class="hl"><td><b>SmolVLA</b>, default (expert only)</td><td class="num">~100 M → 1.6 GB</td><td class="num">~350 M → 0.7–1.4 GB</td><td class="num">≈ 2–3 GB</td><td>Fits a lab GPU; batch size decides the rest</td></tr>
+      <tr><td><b>π0</b>, full fine-tune</td><td class="num">3.3 B → 53 GB</td><td class="num">—</td><td class="num">≈ 53 GB</td><td>Needs an 80 GB-class GPU</td></tr>
+      <tr><td><b>π0</b> with LoRA (~1% trained)</td><td class="num">~33 M → 0.5 GB</td><td class="num">3.3 B → 6.6 GB</td><td class="num">≈ 7 GB</td><td>Possible on 24 GB once activations are added</td></tr>
+    </tbody></table></div>
+  <p class="small muted">Activations (the intermediate results kept for back-propagation) come on top and grow with batch size and image count. That is why <code>--batch_size</code> is your main dial when you run out of memory. These are estimates for planning, not measurements; watch <code>nvidia-smi</code> on your own machine.</p>
+
+  <h3>Steps</h3>
+  <ol class="steps">
+    <li><b>Start the fine-tune.</b> These are the settings recommended in the SmolVLA documentation.
+<pre><code>lerobot-train \
+  --policy.path=lerobot/smolvla_base \
+  --dataset.repo_id=${HF_USER}/so101_redblue_bin \
+  --batch_size=64 \
+  --steps=20000 \
+  --save_freq=5000 \
+  --output_dir=outputs/train/smolvla_redblue \
+  --job_name=smolvla_redblue \
+  --policy.device=cuda \
+  --policy.repo_id=${HF_USER}/smolvla_redblue \
+  --wandb.enable=true</code></pre></li>
+    <li><b>If training stops with a camera or feature-name mismatch</b>, map your camera names onto the names the base model expects, and mark unused camera slots as empty:
+<pre><code>  --rename_map='{"observation.images.front":"observation.images.camera1","observation.images.wrist":"observation.images.camera2"}' \
+  --policy.empty_cameras=1 \</code></pre></li>
+    <li><b>If you run out of GPU memory</b>, lower the batch to 16 or 8. Smaller batches give noisier updates, so increase <code>--steps</code> in proportion if you can afford the time.</li>
+    <li><b>Watch the loss curve</b> in Weights &amp; Biases (or the terminal log every few hundred steps). Read Figure 6 before you judge it.</li>
+    <li><b>Check the checkpoint folder</b> is complete before deploying: <code>outputs/train/smolvla_redblue/checkpoints/last/pretrained_model/</code> should contain <code>config.json</code>, <code>model.safetensors</code>, <code>train_config.json</code> and the pre- and post-processor files (these carry μ and σ).</li>
+  </ol>
+
+  <div class="tbl wide"><table>
+    <thead><tr><th>Flag</th><th>Meaning</th><th>Beginner advice</th></tr></thead>
+    <tbody>
+      <tr><td><code>--policy.path</code></td><td>Which pre-trained model to start from</td><td>Always <code>lerobot/smolvla_base</code> for this lab</td></tr>
+      <tr><td><code>--dataset.repo_id</code></td><td>Your dataset on the Hub (or local cache)</td><td>Same name you recorded with</td></tr>
+      <tr><td><code>--batch_size</code></td><td>Frames per training step</td><td>64 on a large GPU; 8–16 on a laptop</td></tr>
+      <tr><td><code>--steps</code></td><td>Number of updates</td><td>20,000 is the documented baseline</td></tr>
+      <tr><td><code>--save_freq</code></td><td>Save a checkpoint every N steps</td><td>5,000 gives you four to compare</td></tr>
+      <tr><td><code>--policy.repo_id</code></td><td>Where to upload the trained model</td><td>Lets the deployment PC download it</td></tr>
+      <tr><td><code>--wandb.enable</code></td><td>Online loss plots</td><td>Very helpful; needs a free W&amp;B account</td></tr>
+    </tbody></table></div>
+
+  <figure>
+  <div class="fig">
+  <svg viewBox="0 0 960 270" role="img" aria-labelledby="fl-t">
+    <title id="fl-t">Illustrative training loss: drops quickly in the first few thousand steps, then flattens near 0.017 by step 20,000.</title>
+    <g class="rule"><line x1="70" y1="30" x2="930" y2="30"/><line x1="70" y1="96.7" x2="930" y2="96.7"/><line x1="70" y1="163.3" x2="930" y2="163.3"/></g>
+    <line x1="70" y1="230" x2="930" y2="230" stroke="var(--ink-2)"/>
+    <line x1="70" y1="30" x2="70" y2="230" stroke="var(--ink-2)"/>
+    <g class="s mono dim" text-anchor="end"><text x="62" y="234">0</text><text x="62" y="167">0.04</text><text x="62" y="101">0.08</text><text x="62" y="34">0.12</text></g>
+    <g class="s mono dim" text-anchor="middle"><text x="70" y="250">0</text><text x="285" y="250">5k</text><text x="500" y="250">10k</text><text x="715" y="250">15k</text><text x="930" y="250">20k steps</text></g>
+    <polyline fill="none" stroke="var(--accent)" stroke-width="2.5" points="70.0,31.8 80.8,43.8 91.5,60.6 102.2,70.9 113.0,82.7 123.8,100.2 134.5,110.5 145.2,110.4 156.0,124.8 166.8,132.4 177.5,131.4 188.2,142.9 199.0,144.9 209.8,153.4 220.5,156.5 231.2,165.0 242.0,164.6 252.8,166.1 263.5,172.1 274.2,173.3 285.0,176.4 295.8,183.3 306.5,180.4 317.2,183.5 328.0,187.3 338.8,190.6 349.5,186.6 360.2,190.5 371.0,190.1 381.8,190.3 392.5,192.3 403.2,192.1 414.0,195.8 424.8,194.4 435.5,197.0 446.2,195.1 457.0,196.0 467.8,200.3 478.5,200.5 489.2,200.5 500.0,197.6 510.7,200.2 521.5,199.7 532.2,201.3 543.0,200.8 553.8,201.5 564.5,201.8 575.2,201.1 586.0,201.3 596.8,200.4 607.5,201.3 618.2,200.6 629.0,201.0 639.8,200.8 650.5,201.9 661.2,203.4 672.0,201.5 682.8,201.3 693.5,201.6 704.2,202.6 715.0,202.2 725.8,203.5 736.5,202.1 747.2,202.8 758.0,203.4 768.8,204.0 779.5,202.3 790.2,202.0 801.0,203.9 811.8,202.5 822.5,203.3 833.2,203.8 844.0,203.5 854.8,202.7 865.5,202.6 876.2,204.0 887.0,203.0 897.8,203.9 908.5,202.9 919.2,203.5 930.0,202.7"/>
+    <text x="140" y="72" class="s">fast drop: learns the rough motion</text>
+    <text x="640" y="186" class="s">slow tail: polishing details</text>
+    <rect x="520" y="44" width="400" height="58" rx="6" class="badf"/>
+    <text x="536" y="68" class="s tbad">Lower loss = copies the demos more closely.</text>
+    <text x="536" y="88" class="s tbad">It does NOT tell you how often the robot succeeds.</text>
+  </svg>
+  </div>
+  <figcaption><b>Figure 6. What a healthy loss curve looks like</b> (illustrative shape). One published SmolVLA run on an SO-101 pick-and-place dataset went from a mean loss of about 0.10 in the first 4,000 steps to about 0.018 in the last 4,000. Only the real arm can tell you whether the task works; that is Stage 6.</figcaption>
+  </figure>
+
+  <h3>What goes wrong here, and how to fix it</h3>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Challenge</th><th>What you see</th><th>Why</th><th>How to overcome it</th></tr></thead>
+    <tbody>
+      <tr><td><b>Out of memory</b></td><td><code>CUDA out of memory</code></td><td>Batch too big for the GPU</td><td>Lower <code>--batch_size</code>; keep the backbone frozen (default); close other GPU programs; or train on Colab / a cloud A100.</td></tr>
+      <tr><td><b>Feature mismatch</b></td><td>Error listing missing <code>observation.images.*</code> keys</td><td>Your camera names differ from the base model's</td><td><code>--rename_map</code> and <code>--policy.empty_cameras</code> (step 2).</td></tr>
+      <tr><td><b>Very slow steps</b></td><td>GPU usage low, CPU at 100%</td><td>Decoding MP4 video is the bottleneck</td><td>Increase dataloader workers (<code>--num_workers</code>); keep the dataset on a local SSD.</td></tr>
+      <tr><td><b>Training takes too long</b></td><td>Hours per thousand steps on a laptop</td><td>Small GPU, small batch</td><td>Start the run at the end of a lab and let it run overnight, or use cloud time. ~4 h on one A100 for 20k steps at batch 64.</td></tr>
+      <tr><td><b>Memorising</b></td><td>Loss very low, robot fails at positions between the taped spots</td><td>Too few, too similar episodes, seen 30+ times each</td><td>Compare checkpoints at 10k, 15k and 20k on the arm; add episodes rather than steps.</td></tr>
+      <tr><td><b>Language forgotten</b></td><td>Ignores instructions it should know</td><td>Data design (Stage 3), sometimes long training on narrow data</td><td>Fix the data first; test earlier checkpoints with the instruction-swap test.</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ===================== STAGE 5 ===================== -->
+<section class="part" id="s5">
+  <div class="part-head"><span class="tag">Stage 5 of 6</span><span class="eyebrow">Deployment</span></div>
+  <h2>Deploy on the real arm</h2>
+  <p class="goal"><b>Output of this stage:</b> the follower arm running your model in real time, safely, with smooth motion between chunks.</p>
+
+  <h3>Pre-flight checklist</h3>
+  <ul class="tight">
+    <li>Same <code>--robot.id</code> as in recording (same calibration file).</li>
+    <li>Same camera <strong>names</strong> (<code>front</code>, <code>wrist</code>), same <strong>positions</strong>, same resolution and fps.</li>
+    <li>Same <strong>instruction string</strong>, character for character, as in the dataset.</li>
+    <li>Same lighting; fragile things removed from the table.</li>
+    <li>One person's hand next to the follower's power switch for the whole run.</li>
+  </ul>
+
+  <h3>Steps</h3>
+  <ol class="steps">
+    <li><b>Run the policy.</b> In LeRobot v0.6 the <code>lerobot-rollout</code> command runs a trained policy on the robot (older versions used <code>lerobot-record</code> with <code>--policy.path</code>).
+<pre><code>source rig.env
+lerobot-rollout \
+  --strategy.type=base \
+  --robot.type=so101_follower --robot.port=$FOLLOWER_PORT --robot.id=$FOLLOWER_ID \
+  --robot.cameras="{ front: {type: opencv, index_or_path: $FRONT_CAM, width: 640, height: 480, fps: 30}, wrist: {type: opencv, index_or_path: $WRIST_CAM, width: 640, height: 480, fps: 30}}" \
+  --task="Put the red cube in the bin" \
+  --policy.path=${HF_USER}/smolvla_redblue \
+  --display_data=true</code></pre></li>
+    <li><b>Start slow and close.</b> First run with the red cube at position 3 only. Watch the first chunk with your hand on the power switch.</li>
+    <li><b>If the motion pauses or jerks between chunks</b>, read the timing section below and try real-time chunking: add <code>--inference.type=rtc</code>.</li>
+    <li><b>Change only the instruction</b> to "blue" and run again with both cubes on the table. This is your first quick listening check.</li>
+  </ol>
+
+  <h3>Why the arm can stutter: the timing maths</h3>
+  <p>The model needs some time <i class="v">L</i> to compute a chunk (its <strong>latency</strong>). While it is thinking, the clock keeps running at Δt = 1/fps per step.</p>
+  <div class="math"><span class="lbl">steps that pass during one inference</span>
+    <i>k</i> = ⌈ <i>L</i> / Δ<i>t</i> ⌉</div>
+  <div class="math"><span class="lbl">synchronous: fraction of time the arm stands still</span>
+    frozen = <span class="frac"><span><i>L</i></span><span><i>n</i> · Δ<i>t</i> + <i>L</i></span></span>
+    <span class="msub">&nbsp;&nbsp;(n = steps executed per chunk)</span></div>
+  <p>The fix is <strong>asynchronous inference</strong>: start computing the next chunk while the arm is still playing the current one. Ask for it when only <i class="v">g</i> steps are left in the queue. As long as <i class="v">g</i> ≥ <i class="v">k</i>, the new chunk arrives before the old one runs out, and the arm never stops. SmolVLA was designed for this; LeRobot's real-time chunking (RTC) also blends the new chunk into the old one so there is no jump at the boundary.</p>
+
+  <figure>
+  <div class="fig">
+  <svg viewBox="0 0 960 230" role="img" aria-labelledby="fd-t">
+    <title id="fd-t">Synchronous execution pauses the arm while each chunk is computed; asynchronous execution computes the next chunk while the arm is still moving, so motion is continuous.</title>
+    <text x="20" y="74" class="m">Synchronous</text>
+    <text x="20" y="164" class="m">Asynchronous</text>
+    <g>
+      <rect x="120" y="56" width="51.3" height="26" rx="3" class="box2"/>
+      <rect x="171.3" y="56" width="341.7" height="26" rx="3" class="act"/>
+      <rect x="513" y="56" width="51.2" height="26" rx="3" class="badf"/>
+      <rect x="564.2" y="56" width="341.8" height="26" rx="3" class="act"/>
+      <rect x="906" y="56" width="34" height="26" rx="3" class="badf"/>
+      <text x="342" y="74" text-anchor="middle" class="s">chunk 1 (50 steps)</text>
+      <text x="735" y="74" text-anchor="middle" class="s">chunk 2</text>
+      <text x="538.6" y="48" text-anchor="middle" class="s tbad">arm frozen</text>
+    </g>
+    <g>
+      <rect x="120" y="120" width="51.3" height="16" rx="3" class="box2"/>
+      <rect x="444.7" y="120" width="51.3" height="16" rx="3" class="box2"/>
+      <rect x="786.5" y="120" width="51.2" height="16" rx="3" class="box2"/>
+      <rect x="171.3" y="146" width="341.7" height="26" rx="3" class="act"/>
+      <rect x="513" y="146" width="341.7" height="26" rx="3" fill="color-mix(in srgb,var(--action) 34%,var(--surface))" stroke="var(--action)" stroke-width="1.5"/>
+      <rect x="854.7" y="146" width="85.3" height="26" rx="3" class="act"/>
+      <text x="342" y="164" text-anchor="middle" class="s">chunk 1</text>
+      <text x="684" y="164" text-anchor="middle" class="s">chunk 2</text>
+      <text x="470" y="112" text-anchor="middle" class="s dim">next chunk computed while moving</text>
+    </g>
+    <line x1="120" y1="196" x2="940" y2="196" stroke="var(--ink-2)"/>
+    <g stroke="var(--ink-2)"><line x1="120" y1="192" x2="120" y2="200"/><line x1="325" y1="192" x2="325" y2="200"/><line x1="530" y1="192" x2="530" y2="200"/><line x1="735" y1="192" x2="735" y2="200"/><line x1="940" y1="192" x2="940" y2="200"/></g>
+    <g class="s mono dim" text-anchor="middle"><text x="120" y="216">0 s</text><text x="325" y="216">1 s</text><text x="530" y="216">2 s</text><text x="735" y="216">3 s</text><text x="925" y="216">4 s</text></g>
+    <g transform="translate(560,6)"><rect width="12" height="12" class="box2"/><text x="18" y="11" class="s">model thinking (L = 250 ms)</text><rect x="200" width="12" height="12" class="act"/><text x="218" y="11" class="s">arm moving</text></g>
+  </svg>
+  </div>
+  <figcaption><b>Figure 7. Same model, two schedules</b>, drawn to scale for 30 Hz, 50-step chunks and an assumed 250 ms latency. Measure your own latency; it depends on the GPU.</figcaption>
+  </figure>
+
+  <div class="calc" id="timecalc">
+    <h4><span class="eyebrow">Calculator</span> Will my arm stutter?</h4>
+    <div class="calc-grid">
+      <label for="t-fps">Control rate (Hz)<input id="t-fps" type="number" min="1" value="30"></label>
+      <label for="t-n">Steps executed per chunk<input id="t-n" type="number" min="1" value="50"></label>
+      <label for="t-L">Inference latency (ms)<input id="t-L" type="number" min="0" value="250"></label>
+    </div>
+    <div class="out">
+      <div><span class="ov" id="t-dt">33.3 ms</span><span class="ol">Δt per step</span></div>
+      <div><span class="ov" id="t-chunk">1.67 s</span><span class="ol">motion per chunk</span></div>
+      <div><span class="ov" id="t-k">8</span><span class="ol">steps that pass while thinking (k)</span></div>
+      <div><span class="ov" id="t-frozen">13.0%</span><span class="ol">time frozen if synchronous</span></div>
+      <div><span class="ov" id="t-g">≥ 8</span><span class="ol">queue threshold g for async</span></div>
+    </div>
+    <p class="verdict" id="t-verdict">Synchronously, the arm stops for 250 ms every 1.67 s. Asynchronously, request the next chunk with at least 8 steps left (add a margin, e.g. 10).</p>
+  </div>
+
+  <div class="note warn"><span class="label">Safety</span>
+  <ul class="tight">
+    <li>Keep the follower's power switch within reach; cutting power is your emergency stop.</li>
+    <li>The follower config has a <code>max_relative_target</code> setting that limits how far a joint may move in one step. Set it low for first tests (check its units with <code>--help</code>).</li>
+    <li>Clear the table of anything that is not part of the task, and keep fingers out of the gripper's path.</li>
+    <li>Give servos a rest every 15–20 minutes of continuous running; hot servos lose accuracy.</li>
+  </ul></div>
+
+  <h3>What goes wrong here, and how to fix it</h3>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Challenge</th><th>What you see</th><th>Why</th><th>How to overcome it</th></tr></thead>
+    <tbody>
+      <tr><td><b>Pauses between chunks</b></td><td>Arm stops briefly every 1–2 s</td><td>Synchronous inference</td><td>Asynchronous inference or <code>--inference.type=rtc</code>; a faster GPU.</td></tr>
+      <tr><td><b>Jerk at chunk boundaries</b></td><td>Sudden jump when a new chunk starts</td><td>New plan disagrees with the old one</td><td>RTC blending; execute fewer steps per chunk so plans overlap.</td></tr>
+      <tr><td><b>Sudden wild move at start</b></td><td>Arm lunges to a strange pose</td><td>Wrong calibration ID or wrong camera order</td><td>Check <code>rig.env</code>; low <code>max_relative_target</code> while testing.</td></tr>
+      <tr><td><b>Freezes near the cube</b></td><td>Hovers, opens and closes, never commits</td><td>Two valid options look equally good, or an unfamiliar view</td><td>More demos at that position; check the wrist camera sees the cube.</td></tr>
+      <tr><td><b>Worked in the lab, fails elsewhere</b></td><td>Success drops on a new table or under new light</td><td>Distribution shift: the images look new to the model</td><td>Record some episodes in the new setting and fine-tune again.</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ===================== STAGE 6 ===================== -->
+<section class="part" id="s6">
+  <div class="part-head"><span class="tag">Stage 6 of 6</span><span class="eyebrow">Evaluation</span></div>
+  <h2>Evaluate honestly</h2>
+  <p class="goal"><b>Output of this stage:</b> a score sheet with success rates and their error bars, the result of the instruction-swap test, and a list of failures each traced to a stage.</p>
+
+  <h3>6.1 A fixed test protocol</h3>
+  <p>Decide the trials before you start, write them on a sheet, and do not change the plan when the robot is having a good or bad day.</p>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Test</th><th>Set-up</th><th class="num">Trials</th><th>Question it answers</th></tr></thead>
+    <tbody>
+      <tr><td><b>T1 · In-distribution</b></td><td>Taped positions 1–5, both instructions, as recorded</td><td class="num">5 × 2 × 2 = 20</td><td>Did it learn the task at all?</td></tr>
+      <tr><td><b>T2 · Instruction swap</b></td><td>Both cubes placed; say "red", then the same scene with "blue"</td><td class="num">10 pairs</td><td>Does it listen? (the <a href="#deaf">central failure mode</a>)</td></tr>
+      <tr><td><b>T3 · New positions</b></td><td>Cubes placed between the taped marks</td><td class="num">10</td><td>Does it generalise in space?</td></tr>
+      <tr><td><b>T4 · Distractor</b></td><td>Add a green cube that is never mentioned</td><td class="num">10</td><td>Is it confused by new objects?</td></tr>
+      <tr><td><b>T5 · Lighting</b></td><td>Lamp moved or dimmed</td><td class="num">10</td><td>How fragile is its vision?</td></tr>
+    </tbody></table></div>
+  <p>Score each trial as <span class="pill good">success</span> (cube in bin), <span class="pill mid">partial</span> (grasped but not placed) or <span class="pill bad">fail</span>, and write one word on <em>how</em> it failed. For T2, a pair counts as "listened" only if both runs move the named cube.</p>
+
+  <h3>6.2 How sure can you be? The error bar</h3>
+  <p>Twenty trials sound like a lot. They are not. If the robot succeeds <i class="v">s</i> times in <i class="v">N</i> trials:</p>
+  <div class="math"><span class="lbl">success rate and its 95% margin</span>
+    <i>p</i> = <span class="frac"><span><i>s</i></span><span><i>N</i></span></span>
+    &nbsp;&nbsp;&nbsp;&nbsp; margin ≈ 1.96 × <span style="white-space:nowrap">√( <i>p</i>(1 − <i>p</i>) / <i>N</i> )</span></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Worked example</th><th class="num"><span class="nt">p</span></th><th class="num">margin</th><th class="num">plausible range</th></tr></thead>
+    <tbody>
+      <tr><td>14 of 20</td><td class="num">70%</td><td class="num">±20%</td><td class="num">50% – 90%</td></tr>
+      <tr><td>56 of 80</td><td class="num">70%</td><td class="num">±10%</td><td class="num">60% – 80%</td></tr>
+    </tbody></table></div>
+  <p>So if checkpoint A scores 13/20 and checkpoint B 15/20, you have <strong>not</strong> shown that B is better. Quadrupling the trials halves the margin.</p>
+
+  <figure>
+  <div class="fig narrow">
+  <svg viewBox="0 0 960 270" role="img" aria-labelledby="fe-t">
+    <title id="fe-t">The 95 percent margin for a 70 percent success rate shrinks from 28 points at 10 trials to 9 points at 100 trials.</title>
+    <g class="rule"><line x1="70" y1="30" x2="930" y2="30"/><line x1="70" y1="96.7" x2="930" y2="96.7"/><line x1="70" y1="163.3" x2="930" y2="163.3"/></g>
+    <line x1="70" y1="230" x2="930" y2="230" stroke="var(--ink-2)"/><line x1="70" y1="30" x2="70" y2="230" stroke="var(--ink-2)"/>
+    <g class="s mono dim" text-anchor="end"><text x="62" y="234">0</text><text x="62" y="167">±10%</text><text x="62" y="101">±20%</text><text x="62" y="34">±30%</text></g>
+    <g class="s mono dim" text-anchor="middle"><text x="70" y="250">0</text><text x="242" y="250">20</text><text x="414" y="250">40</text><text x="586" y="250">60</text><text x="758" y="250">80</text><text x="910" y="250">100 trials</text></g>
+    <polyline fill="none" stroke="var(--accent)" stroke-width="2.5" points="156.0,40.6 164.6,49.5 173.2,57.1 181.8,63.9 190.4,70.0 199.0,75.4 207.6,80.3 216.2,84.8 224.8,88.9 233.4,92.6 242.0,96.1 250.6,99.3 259.2,102.3 267.8,105.1 276.4,107.8 285.0,110.2 293.6,112.6 302.2,114.8 310.8,116.8 319.4,118.8 328.0,120.7 336.6,122.5 345.2,124.1 353.8,125.8 362.4,127.3 371.0,128.8 379.6,130.2 388.2,131.6 396.8,132.9 405.4,134.1 414.0,135.3 422.6,136.5 431.2,137.6 439.8,138.7 448.4,139.7 457.0,140.7 465.6,141.7 474.2,142.7 482.8,143.6 491.4,144.5 500.0,145.3 508.6,146.2 517.2,147.0 525.8,147.7 534.4,148.5 543.0,149.3 551.6,150.0 560.2,150.7 568.8,151.4 577.4,152.0 586.0,152.7 594.6,153.3 603.2,154.0 611.8,154.6 620.4,155.2 629.0,155.7 637.6,156.3 646.2,156.8 654.8,157.4 663.4,157.9 672.0,158.4 680.6,158.9 689.2,159.4 697.8,159.9 706.4,160.4 715.0,160.9 723.6,161.3 732.2,161.8 740.8,162.2 749.4,162.6 758.0,163.1 766.6,163.5 775.2,163.9 783.8,164.3 792.4,164.7 801.0,165.1 809.6,165.4 818.2,165.8 826.8,166.2 835.4,166.5 844.0,166.9 852.6,167.2 861.2,167.6 869.8,167.9 878.4,168.2 887.0,168.6 895.6,168.9 904.2,169.2 912.8,169.5 921.4,169.8 930.0,170.1"/>
+    <g class="fk"><circle cx="156" cy="40.6" r="5"/><circle cx="242" cy="96.1" r="5"/><circle cx="500" cy="145.3" r="5"/><circle cx="930" cy="170.1" r="5"/></g>
+    <text x="168" y="44" class="s mono">N=10 · ±28%</text>
+    <text x="254" y="92" class="s mono">N=20 · ±20%</text>
+    <text x="512" y="140" class="s mono">N=50 · ±13%</text>
+    <text x="922" y="160" text-anchor="end" class="s mono">N=100 · ±9%</text>
+  </svg>
+  </div>
+  <figcaption><b>Figure 8. Error bar versus number of trials</b> for a true success rate near 70% (computed with the formula above).</figcaption>
+  </figure>
+
+  <div class="calc" id="cicalc">
+    <h4><span class="eyebrow">Calculator</span> Success rate with error bar</h4>
+    <div class="calc-grid">
+      <label for="c-s">Successes<input id="c-s" type="number" min="0" value="14"></label>
+      <label for="c-n">Trials<input id="c-n" type="number" min="1" value="20"></label>
+    </div>
+    <div class="out">
+      <div><span class="ov" id="c-p">70%</span><span class="ol">success rate p</span></div>
+      <div><span class="ov" id="c-m">±20%</span><span class="ol">95% margin</span></div>
+      <div><span class="ov" id="c-r">50% – 90%</span><span class="ol">plausible range</span></div>
+      <div><span class="ov" id="c-n4">80</span><span class="ol">trials needed to halve the margin</span></div>
+    </div>
+    <p class="verdict" id="c-verdict">The true rate is probably between 50% and 90%. Report it as "70% ± 20% (14/20)".</p>
+  </div>
+  <p class="small muted">The simple formula is rough when p is close to 0% or 100% or N is very small; it is good enough for comparing lab runs.</p>
+
+  <h3>6.3 From failure to fix: trace it back</h3>
+  <p>Every failure points to a stage. Most of the time the fix is better data, not more training.</p>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Failure type</th><th>Typical sign</th><th>Most likely cause</th><th>Go back to</th></tr></thead>
+    <tbody>
+      <tr><td><b>Language</b></td><td>Fails T2: picks the same cube for both instructions</td><td>Instruction did not decide the target in the data</td><td><a href="#s3">Stage 3</a> · paired scenes</td></tr>
+      <tr><td><b>Perception</b></td><td>Reaches to where the cube <em>usually</em> is</td><td>Camera moved; cube hidden; too few positions</td><td><a href="#s1">Stage 1</a> / <a href="#s3">3</a></td></tr>
+      <tr><td><b>Grasp</b></td><td>Closes too early or too late; cube slips</td><td>Inconsistent grasps in demos; wrist camera view poor</td><td><a href="#s3">Stage 3</a> · demo quality</td></tr>
+      <tr><td><b>Timing</b></td><td>Stutters, pauses, jerks</td><td>Latency and chunk schedule</td><td><a href="#s5">Stage 5</a> · async / RTC</td></tr>
+      <tr><td><b>Distribution shift</b></td><td>Fails T4 or T5 only</td><td>The test scene looks unlike the training scenes</td><td><a href="#s3">Stage 3</a> · add varied episodes</td></tr>
+      <tr><td><b>Memorising</b></td><td>Passes T1, fails T3</td><td>Too few episodes, trained long</td><td><a href="#s3">Stage 3</a> / <a href="#s4">4</a> · more data, compare checkpoints</td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ===================== LAB PLAN ===================== -->
+<section class="part" id="lab">
+  <div class="part-head"><span class="tag">Part C1</span><span class="eyebrow">Putting it into practice</span></div>
+  <h2>Suggested lab plan</h2>
+  <p>Four 3-hour lab sessions for a team of 3–4 learners sharing one leader–follower pair. Each session's output is the next session's input, so a lab can pause and resume without losing work.</p>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Session</th><th>Stages</th><th>Team roles</th><th>Output handed to the next session</th><th>Assessment evidence</th></tr></thead>
+    <tbody>
+      <tr><td><b>Lab 1</b><br><span class="muted small">Rig &amp; software</span></td><td>1, 2</td><td>Builder, installer, tester</td><td><code>rig.env</code>, calibrated arms, teleop working with 2 cameras, a 10-episode pilot dataset</td><td>Teleop video; photo of bench with camera reference</td></tr>
+      <tr><td><b>Lab 2</b><br><span class="muted small">Data</span></td><td>3</td><td>Operator, scene-setter, logger (rotate every block)</td><td>60-episode dataset on the Hub; recording log; training started at the end of the lab</td><td>Data-design sheet showing the "cover the instruction" test</td></tr>
+      <tr><td><i>Between labs</i></td><td>4</td><td>—</td><td>Checkpoints at 5k, 10k, 15k, 20k steps</td><td>Loss curve screenshot</td></tr>
+      <tr><td><b>Lab 3</b><br><span class="muted small">Deploy &amp; evaluate</span></td><td>5, 6</td><td>Safety officer, operator, scorer</td><td>Score sheet T1–T5 with error bars; failure log</td><td>Instruction-swap result; failure → stage table</td></tr>
+      <tr><td><b>Lab 4</b> <span class="muted small">(optional)</span><br><span class="muted small">Improve</span></td><td>3 → 6</td><td>Whole team</td><td>One targeted data fix (e.g. 20 episodes at the worst position), fine-tune again, re-evaluate; ACT on the same data as a baseline</td><td>Before/after comparison with error bars</td></tr>
+    </tbody></table></div>
+  <p class="small muted">Mapping to the unit's learning outcomes: dataset generation (Lab 2), imitation-learning policy (ACT baseline, Lab 4), VLA integration (Labs 2–3), policy evaluation and failure-mode analysis (Labs 3–4).</p>
+</section>
+
+<!-- ===================== TROUBLESHOOTING ===================== -->
+<section class="part" id="trouble">
+  <div class="part-head"><span class="tag">Part C2</span><span class="eyebrow">Quick reference</span></div>
+  <h2>Troubleshooting index</h2>
+  <p>The first thing to try for the problems learners hit most often.</p>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Symptom</th><th>First thing to try</th><th>Details</th></tr></thead>
+    <tbody>
+      <tr><td>Follower does not move during teleop</td><td>Re-run <code>lerobot-find-port</code>; ports may have swapped</td><td><a href="#s2">Stage 2</a></td></tr>
+      <tr><td>Arm jumps to an odd pose on start</td><td>Check <code>--robot.id</code> matches the calibration</td><td><a href="#s2">Stage 2</a></td></tr>
+      <tr><td>Unrecognised command-line flag</td><td><code>--help</code> on that command; your LeRobot version differs</td><td><a href="#s2">Stage 2</a></td></tr>
+      <tr><td>CUDA out of memory</td><td>Halve <code>--batch_size</code></td><td><a href="#s4">Stage 4</a></td></tr>
+      <tr><td>Missing <code>observation.images.*</code> keys</td><td><code>--rename_map</code> and <code>--policy.empty_cameras</code></td><td><a href="#s4">Stage 4</a></td></tr>
+      <tr><td>Loss is low but robot fails</td><td>Test earlier checkpoints; inspect demos for that position</td><td><a href="#s4">Stage 4</a>, <a href="#s6">6</a></td></tr>
+      <tr><td>Same cube whatever the instruction</td><td>Instruction-swap test; redesign data with paired scenes</td><td><a href="#deaf">Stage 3</a></td></tr>
+      <tr><td>Arm pauses every second or two</td><td><code>--inference.type=rtc</code></td><td><a href="#s5">Stage 5</a></td></tr>
+      <tr><td>Worked yesterday, not today</td><td>Compare today's camera view with the reference photo; check lighting</td><td><a href="#s1">Stage 1</a></td></tr>
+    </tbody></table></div>
+</section>
+
+<!-- ===================== GLOSSARY ===================== -->
+<section class="part" id="gloss">
+  <div class="part-head"><span class="tag">Part C3</span><span class="eyebrow">Reference</span></div>
+  <h2>Glossary</h2>
+  <div class="tbl"><table>
+    <tbody>
+      <tr><td><b>VLA</b></td><td>Vision-Language-Action model: takes images and an instruction, outputs robot actions.</td></tr>
+      <tr><td><b>VLM</b></td><td>Vision-Language Model: takes images and text, outputs text. The "brain" inside a VLA.</td></tr>
+      <tr><td><b>Token</b></td><td>A list of numbers representing one small piece of input: an image patch, a word piece, or the joint state.</td></tr>
+      <tr><td><b>Action</b></td><td>The 6 target joint positions sent to the follower at one time step.</td></tr>
+      <tr><td><b>Action chunk</b></td><td>A block of the next H actions (50 for SmolVLA) predicted in one go.</td></tr>
+      <tr><td><b>State</b></td><td>The 6 joint positions the follower measures right now.</td></tr>
+      <tr><td><b>Episode</b></td><td>One recorded attempt at the task, from start pose to finish.</td></tr>
+      <tr><td><b>Teleoperation</b></td><td>Controlling the follower by moving the leader arm by hand.</td></tr>
+      <tr><td><b>Pre-training / fine-tuning</b></td><td>Pre-training: the large first training on many datasets, done by the model's authors. Fine-tuning: your short extra training on your own data.</td></tr>
+      <tr><td><b>Frozen</b></td><td>Part of the network whose weights are not changed during fine-tuning.</td></tr>
+      <tr><td><b>Flow matching</b></td><td>A way to generate outputs by starting from noise and following a learned velocity towards realistic data.</td></tr>
+      <tr><td><b>Normalisation</b></td><td>Rescaling numbers with (a − μ)/σ so all joints share a similar range.</td></tr>
+      <tr><td><b>Latency</b></td><td>Time the model takes to compute one chunk.</td></tr>
+      <tr><td><b>Asynchronous inference / RTC</b></td><td>Computing the next chunk while the current one plays; real-time chunking also blends the two smoothly.</td></tr>
+      <tr><td><b>LoRA</b></td><td>Low-Rank Adaptation: trains small add-on matrices instead of the whole network, to save memory.</td></tr>
+      <tr><td><b>Distribution shift</b></td><td>When test conditions (light, positions, objects) differ from the training data.</td></tr>
+      <tr><td><b>Checkpoint</b></td><td>A saved copy of the model's weights at one point in training.</td></tr>
+    </tbody></table></div>
+</section>
+
+<footer class="omit" id="omit">
+  <h2>Intentionally left out</h2>
+  <p>To keep this lesson at beginner level, the following are deliberately not covered here:</p>
+  <ul>
+    <li><strong>Full transformer and attention maths</strong> (queries, keys, values, multi-head attention). Only the softmax weighting is shown.</li>
+    <li><strong>π0 / π0.5 internals</strong>: the FAST action tokenizer, knowledge insulation and co-training with web data.</li>
+    <li><strong>GR00T N1.x fine-tuning workflow</strong> (its modality configuration and separate training scripts). Mentioned for comparison only.</li>
+    <li><strong>World action models and RL fine-tuning of VLAs</strong>. These belong to the next part of the learning outcome on VLA and world-model integration.</li>
+    <li><strong>The Isaac Lab simulated-data pipeline in detail</strong>. It is covered in the imitation-learning lab; here it appears only as an optional data source.</li>
+    <li><strong>Measured GPU memory and latency</strong> for the lab laptops. The figures here are rules of thumb and an assumed 250 ms latency; measure on your own hardware.</li>
+    <li><strong>Bimanual or mobile set-ups</strong> and more than two cameras.</li>
+  </ul>
+  <p class="small muted">Commands were checked against the LeRobot documentation for v0.6.x in November 2026. LeRobot changes quickly, and command names and flags differ between releases; when this page and <code>--help</code> disagree, trust <code>--help</code>. Numbers marked illustrative are for teaching, not measurement.</p>
+  <h3>Sources</h3>
+  <ul class="srcs">
+    <li><a href="https://huggingface.co/docs/lerobot/smolvla" target="_blank" rel="noopener">LeRobot docs · SmolVLA</a></li>
+    <li><a href="https://huggingface.co/docs/lerobot/so101" target="_blank" rel="noopener">LeRobot docs · SO-101</a></li>
+    <li><a href="https://huggingface.co/docs/lerobot/il_robots" target="_blank" rel="noopener">LeRobot docs · Imitation learning on real robots</a></li>
+    <li><a href="https://github.com/huggingface/lerobot/releases" target="_blank" rel="noopener">LeRobot release notes (v0.5–v0.6)</a></li>
+    <li><a href="https://learn.arm.com/learning-paths/laptops-and-desktops/finetune-smolvla-lerobot/6-finetune-smolvla/" target="_blank" rel="noopener">Arm Learning Path · Fine-tune SmolVLA for SO-101</a></li>
+    <li><a href="https://huggingface.co/blog/nvidia/gr00t-n1-5-so101-tuning" target="_blank" rel="noopener">NVIDIA · Post-training GR00T N1.5 for SO-101</a></li>
+    <li><a href="https://www.ay-robots.com/train/pi0-5-on-so-101" target="_blank" rel="noopener">AY-Robots · Training π0.5 on SO-101</a></li>
+    <li><a href="https://arxiv.org/abs/2506.01844" target="_blank" rel="noopener">Shukor et al. · SmolVLA paper (2025)</a></li>
+    <li><a href="https://arxiv.org/abs/2410.24164" target="_blank" rel="noopener">Black et al. · π0 paper (2024)</a></li>
+    <li><a href="https://arxiv.org/abs/2210.02747" target="_blank" rel="noopener">Lipman et al. · Flow Matching (2022)</a></li>
+  </ul>
+</footer>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const fmt=(n,d=0)=>Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+  const num=(id,min)=>{const v=parseFloat($(id).value);return isFinite(v)?Math.max(min,v):min;};
+  const signed=(v)=>(v<0?'−':'')+Math.abs(v).toFixed(2);
+
+  /* flow matching */
+  const A=0.8, X=v=>360+150*v;
+  function flow(){
+    const e=parseFloat($('fm-eps').value), t=parseFloat($('fm-tau').value);
+    const x=(1-t)*e+t*A, u=A-e;
+    $('fm-eps-o').textContent=(e<0?'−':'')+Math.abs(e).toFixed(1);
+    $('fm-tau-o').textContent=t.toFixed(1);
+    $('fm-x').textContent=signed(x); $('fm-u').textContent=signed(u); $('fm-step').textContent=signed(0.1*u);
+    $('fm-start').setAttribute('cx',X(e)); $('fm-start-t').setAttribute('x',X(e));
+    $('fm-dot').setAttribute('cx',X(x));
+    let g='';for(let i=0;i<=10;i++){const xi=(1-i/10)*e+(i/10)*A;g+=`<circle cx="${X(xi).toFixed(1)}" cy="60" r="3" fill="var(--action)" opacity="${i/10<=t+1e-9?0.55:0.18}"/>`;}
+    $('fm-ghosts').innerHTML=g;
+    const steps=Math.round(t*10);
+    $('fm-verdict').textContent = steps===10
+      ? `Finished: after 10 steps the value has arrived at ${signed(x)}, the demonstrated gripper value.`
+      : `After ${steps} of 10 steps the value has moved from ${signed(e)} to ${signed(x)}. If the network predicts u perfectly, it lands exactly on 0.80 at τ = 1.`;
+  }
+  ['fm-eps','fm-tau'].forEach(id=>$(id).addEventListener('input',flow)); flow();
+
+  /* data budget */
+  function data(){
+    const ep=num('d-ep',1), sec=num('d-sec',1), rs=num('d-reset',0), fps=num('d-fps',1), cam=num('d-cam',1), st=num('d-steps',1), bs=num('d-bs',1);
+    const frames=ep*sec*fps, imgs=frames*cam, demoMin=ep*sec/60, sessMin=ep*(sec+rs)/60, pass=st*bs/frames;
+    $('d-frames').textContent=fmt(frames); $('d-imgs').textContent=fmt(imgs);
+    $('d-demo').textContent=demoMin<120?fmt(demoMin,0)+' min':fmt(demoMin/60,1)+' h';
+    $('d-session').textContent=sessMin<120?fmt(sessMin,0)+' min':fmt(sessMin/60,1)+' h';
+    $('d-pass').textContent=fmt(pass,1)+'×';
+    let v;
+    if(ep<50) v=`Only ${fmt(ep)} episodes. The SmolVLA authors found 25 episodes too few; aim for at least 50.`;
+    else if(pass>80) v=`Each frame is seen about ${fmt(pass,0)} times. That is a lot of repetition: compare earlier checkpoints, or add episodes instead of steps.`;
+    else if(pass<5) v=`Each frame is seen only about ${fmt(pass,1)} times. The model may be under-trained; consider more steps.`;
+    else v=`Each frame is seen about ${fmt(pass,0)} times. That is normal for fine-tuning on a small dataset; watch for memorising (Stage 4).`;
+    $('d-verdict').textContent=v;
+  }
+  ['d-ep','d-sec','d-reset','d-fps','d-cam','d-steps','d-bs'].forEach(id=>$(id).addEventListener('input',data)); data();
+
+  /* timing */
+  function timing(){
+    const fps=num('t-fps',1), n=num('t-n',1), L=num('t-L',0);
+    const dt=1000/fps, chunk=n*dt, k=Math.ceil(L/dt-1e-9), frozen=L/(chunk+L);
+    $('t-dt').textContent=fmt(dt,1)+' ms'; $('t-chunk').textContent=fmt(chunk/1000,2)+' s';
+    $('t-k').textContent=fmt(k); $('t-frozen').textContent=fmt(frozen*100,1)+'%'; $('t-g').textContent='≥ '+fmt(k);
+    let v;
+    if(k>=n) v=`Inference (${fmt(L)} ms) is longer than a whole chunk of motion (${fmt(chunk)} ms). Even asynchronous execution will run out of actions: use a faster GPU, a smaller model or longer chunks.`;
+    else v=`Synchronously, the arm stops for ${fmt(L)} ms every ${fmt(chunk/1000,2)} s (${fmt(frozen*100,1)}% of the time). Asynchronously, request the next chunk with at least ${fmt(k)} steps left (add a margin, e.g. ${fmt(Math.ceil(k*1.25))}).`;
+    $('t-verdict').textContent=v;
+  }
+  ['t-fps','t-n','t-L'].forEach(id=>$(id).addEventListener('input',timing)); timing();
+
+  /* confidence */
+  function ci(){
+    const N=num('c-n',1); let s=num('c-s',0); if(s>N) s=N;
+    const p=s/N, m=1.96*Math.sqrt(p*(1-p)/N), lo=Math.max(0,p-m), hi=Math.min(1,p+m);
+    const pc=x=>fmt(x*100,0)+'%';
+    $('c-p').textContent=pc(p); $('c-m').textContent='±'+fmt(m*100,0)+'%';
+    $('c-r').textContent=pc(lo)+' – '+pc(hi); $('c-n4').textContent=fmt(N*4);
+    $('c-verdict').textContent=(p===0||p===1)
+      ? `All trials ${p===1?'succeeded':'failed'}. The simple formula gives ±0%, which is too optimistic at this N; run more trials before claiming ${p===1?'100%':'0%'}.`
+      : `The true rate is probably between ${pc(lo)} and ${pc(hi)}. Report it as "${pc(p)} ± ${fmt(m*100,0)}% (${fmt(s)}/${fmt(N)})".`;
+  }
+  ['c-s','c-n'].forEach(id=>$(id).addEventListener('input',ci)); ci();
+})();
+</script>
+</main>
+</div>
+
+</body></html>
