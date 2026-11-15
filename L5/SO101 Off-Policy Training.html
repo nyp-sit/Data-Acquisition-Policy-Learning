@@ -1,0 +1,814 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>SO101 Off-Policy Training</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: same visual system as Supplement B (lab-manual column, colour = signal channel), plus numbered procedure cards. */
+:root{
+  --bg:#F3F5F6; --surface:#FFFFFF; --ink:#15202B; --muted:#56636E; --line:#D3DAE0; --code-bg:#EBEFF2;
+  --accent:#C2560A; --human:#6A3DC4; --vision:#0D7A72; --penalty:#B3223F; --hw:#3B5870; --good:#2F7D32;
+  --accent-soft:#FBEBDD; --human-soft:#EEE8FA; --vision-soft:#DDF1EF; --penalty-soft:#F8E1E6; --hw-soft:#E3EAF0; --good-soft:#E3F2E4;
+  --f-display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1418; --surface:#151D23; --ink:#E2E8EC; --muted:#95A3AE; --line:#2A3740; --code-bg:#1A242B;
+  --accent:#F0893A; --human:#A98CF2; --vision:#3DC3B6; --penalty:#F26A82; --hw:#8EB0CC; --good:#6CC070;
+  --accent-soft:#3A2614; --human-soft:#2A2342; --vision-soft:#12302D; --penalty-soft:#3B1A22; --hw-soft:#1C2A35; --good-soft:#18301A;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1418; --surface:#151D23; --ink:#E2E8EC; --muted:#95A3AE; --line:#2A3740; --code-bg:#1A242B;
+  --accent:#F0893A; --human:#A98CF2; --vision:#3DC3B6; --penalty:#F26A82; --hw:#8EB0CC; --good:#6CC070;
+  --accent-soft:#3A2614; --human-soft:#2A2342; --vision-soft:#12302D; --penalty-soft:#3B1A22; --hw-soft:#1C2A35; --good-soft:#18301A;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+.wrap{max-width:1080px;margin:0 auto}
+.col{max-width:72ch}
+h1,h2,h3,h4{font-family:var(--f-display);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(2rem,5vw,3.1rem);font-weight:800;letter-spacing:-.01em}
+h2{font-size:1.65rem;font-weight:700}
+h3{font-size:1.2rem;font-weight:600;margin-top:10px}
+h4{font-size:1.02rem;font-weight:600}
+p{margin:0}
+a{color:var(--hw);text-underline-offset:2px;overflow-wrap:anywhere}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code{font-family:var(--f-mono);font-size:.88em}
+:not(pre)>code{overflow-wrap:anywhere;background:var(--code-bg);padding:.08em .35em;border-radius:4px}
+.eyebrow{font-family:var(--f-mono);font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+section{padding-block:40px 8px;border-top:1px solid var(--line);margin-top:40px;display:flex;flex-direction:column;gap:18px}
+.secnum{font-family:var(--f-mono);color:var(--accent);font-size:.9rem;font-weight:500}
+header{padding-block:48px 8px;display:flex;flex-direction:column;gap:18px}
+.lede{font-size:1.15rem;max-width:68ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:.86rem;color:var(--muted)}
+.meta b{color:var(--ink);font-weight:600}
+.toc{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.toc a{display:flex;flex-direction:column;gap:2px;text-decoration:none;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;min-width:0}
+.toc a:hover{border-color:var(--accent)}
+.toc span{font-family:var(--f-mono);font-size:.74rem;color:var(--accent);letter-spacing:.06em;text-transform:uppercase}
+.toc small{color:var(--muted);font-size:.84rem;line-height:1.4}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.card .k{font-family:var(--f-mono);font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.card .big{font-family:var(--f-display);font-size:1.55rem;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.card p{font-size:.92rem;color:var(--muted)}
+.c-accent{color:var(--accent)} .c-human{color:var(--human)} .c-vision{color:var(--vision)} .c-penalty{color:var(--penalty)} .c-hw{color:var(--hw)} .c-good{color:var(--good)}
+
+figure{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px 18px 14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+figure .scroll{overflow-x:auto}
+figure svg{display:block;width:100%;height:auto;color:var(--ink);font-family:var(--f-body)}
+figure .scroll svg{min-width:760px}
+figcaption{font-size:.88rem;color:var(--muted);max-width:82ch}
+figcaption b{color:var(--ink)}
+
+.s-box{fill:var(--surface);stroke:var(--line);stroke-width:1.2}
+.s-panel{fill:var(--bg);stroke:var(--line);stroke-width:1.2}
+.s-hw{fill:var(--hw-soft);stroke:var(--hw);stroke-width:1.2}
+.s-human{fill:var(--human-soft);stroke:var(--human);stroke-width:1.2}
+.s-vision{fill:var(--vision-soft);stroke:var(--vision);stroke-width:1.2}
+.s-pen{fill:var(--penalty-soft);stroke:var(--penalty);stroke-width:1.2}
+.s-acc{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.4}
+.s-good{fill:var(--good-soft);stroke:var(--good);stroke-width:1.2}
+.t{fill:var(--ink);font-size:12px}
+.t-b{fill:var(--ink);font-size:12.5px;font-weight:600}
+.t-h{fill:var(--ink);font-size:14px;font-weight:700;font-family:var(--f-display)}
+.t-m{fill:var(--muted);font-size:11px}
+.t-lane{fill:var(--muted);font-size:11px;letter-spacing:.08em;font-family:var(--f-mono)}
+.t-acc{fill:var(--accent);font-size:11.5px;font-weight:600}
+.t-hum{fill:var(--human);font-size:11.5px;font-weight:600}
+.t-vis{fill:var(--vision);font-size:11.5px;font-weight:600}
+.t-pen{fill:var(--penalty);font-size:11.5px;font-weight:600}
+.t-hw{fill:var(--hw);font-size:11.5px;font-weight:600}
+.t-good{fill:var(--good);font-size:11.5px;font-weight:600}
+.ln{stroke:var(--muted);stroke-width:1.4;fill:none}
+.ln-acc{stroke:var(--accent);stroke-width:2;fill:none}
+.ln-hum{stroke:var(--human);stroke-width:2;fill:none}
+.ln-hw{stroke:var(--hw);stroke-width:2;fill:none}
+.grid{stroke:var(--line);stroke-width:1}
+.dash{stroke-dasharray:5 4}
+.f-acc{fill:var(--accent)} .f-hum{fill:var(--human)} .f-vis{fill:var(--vision)} .f-pen{fill:var(--penalty)} .f-muted{fill:var(--muted)} .f-hw{fill:var(--hw)} .f-good{fill:var(--good)} .f-line{fill:var(--line)} .f-code{fill:var(--code-bg)}
+.badge-t{fill:var(--surface);font-size:11px;font-weight:700;font-family:var(--f-mono)}
+
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:.9rem;min-width:680px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--f-mono);font-size:.74rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--code-bg)}
+tr:last-child td{border-bottom:none}
+tr.grp td{background:var(--bg);font-family:var(--f-mono);font-size:.76rem;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);padding-block:7px}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill{display:inline-block;font-family:var(--f-mono);font-size:.72rem;padding:2px 8px;border-radius:999px;white-space:nowrap;font-weight:500}
+.p-acc{background:var(--accent-soft);color:var(--accent)} .p-hum{background:var(--human-soft);color:var(--human)}
+.p-vis{background:var(--vision-soft);color:var(--vision)} .p-pen{background:var(--penalty-soft);color:var(--penalty)}
+.p-hw{background:var(--hw-soft);color:var(--hw)} .p-no{background:var(--code-bg);color:var(--muted)} .p-good{background:var(--good-soft);color:var(--good)}
+
+pre{margin:0;background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:var(--f-mono);font-size:.82rem;line-height:1.55}
+.hl{color:var(--accent);font-weight:500}
+.cm{color:var(--muted)}
+.formula{font-family:var(--f-mono);font-size:.92rem;background:var(--code-bg);border-radius:8px;padding:14px 16px;overflow-x:auto;white-space:pre;line-height:1.7}
+.note{border-left:3px solid var(--hw);padding:4px 0 4px 14px;font-size:.93rem}
+.note.warn{border-left-color:var(--penalty)}
+.note.tip{border-left-color:var(--good)}
+ul.tight,ol.tight{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+.two>*{min-width:0}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.box .eyebrow{color:var(--accent)}
+
+/* anatomy of a transition */
+.anat{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.anat div{border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:4px;min-width:0;font-size:.86rem}
+.anat b{font-family:var(--f-mono);font-size:.82rem;font-weight:500}
+.a-s{background:var(--hw-soft)} .a-a{background:var(--human-soft)} .a-r{background:var(--accent-soft)} .a-n{background:var(--code-bg)} .a-d{background:var(--vision-soft)} .a-c{background:var(--penalty-soft)}
+
+/* phases */
+.phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.phase{padding:16px 18px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--line);min-width:0}
+.phase:last-child{border-right:none}
+.phase .meter{height:8px;border-radius:4px;background:var(--code-bg);overflow:hidden;display:flex}
+.phase .meter i{display:block;height:100%}
+.phase .lbl{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:.74rem;color:var(--muted)}
+
+/* steps */
+.steps{display:flex;flex-direction:column;gap:14px;counter-reset:none}
+.step{display:grid;grid-template-columns:52px minmax(0,1fr);gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px}
+.step .n{font-family:var(--f-display);font-weight:800;font-size:1.6rem;color:var(--accent);line-height:1}
+.step .body{display:flex;flex-direction:column;gap:10px;min-width:0}
+.step .phase-tag{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.check{font-size:.88rem;background:var(--good-soft);border-radius:6px;padding:8px 12px}
+.check b{color:var(--good)}
+@media (max-width:560px){.step{grid-template-columns:1fr}.step .n{font-size:1.3rem}}
+details{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
+summary{cursor:pointer;font-weight:600;font-size:.94rem}
+details[open] summary{margin-bottom:10px}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Lab 4 · Supplement C · Beginner guide · Real hardware</div>
+  <h1>Off-policy RL on the real SO101</h1>
+  <p class="lede">Appendix D of Lab 4 says LeRobot trains the real SO101 with <b>SAC</b>, an <b>off-policy</b> algorithm, inside a method called <b>HIL-SERL</b> (human-in-the-loop, sample-efficient RL). This guide starts from zero: what off-policy means, how it is used to teach the arm to lift a cube, exactly which rewards and settings are involved, and the step-by-step procedure to collect the data and run the training.</p>
+  <div class="meta">
+    <span><b>LeRobot version:</b> 0.6.2 (source checked at commit <code>45cca1a</code>)</span>
+    <span><b>Task:</b> pick and lift a cube with one SO101 follower arm</span>
+    <span><b>Builds on:</b> Lab 4 Appendix D and Supplement B (real-robot rewards)</span>
+  </div>
+  <nav class="toc" aria-label="Sections">
+    <a href="#offpolicy"><span>1 · Concept</span>What off-policy training is<small>On-policy vs off-policy, replay buffer, SAC in plain words</small></a>
+    <a href="#applied"><span>2 · Application</span>How it trains the SO101<small>Actor, learner, two buffers, human take-overs</small></a>
+    <a href="#reward"><span>3 · Rewards &amp; settings</span>What the arm is rewarded for<small>Success reward, gripper penalty, every parameter</small></a>
+    <a href="#procedure"><span>4 · Procedure</span>Collect data and train<small>10 steps from calibration to a trained policy</small></a>
+  </nav>
+</header>
+
+<!-- ======================= 1 ======================= -->
+<section id="offpolicy">
+  <div class="secnum">1 · Concept</div>
+  <h2>What "off-policy" training means</h2>
+  <p class="col">Every RL algorithm repeats the same cycle: the <b>policy</b> (the robot's decision maker) acts, the robot records what happened, and the algorithm updates the policy so that good outcomes become more likely. The difference between on-policy and off-policy is <b>which recorded experience the algorithm is allowed to learn from</b>.</p>
+
+  <div class="two">
+    <div class="box">
+      <span class="eyebrow c-hw">On-policy · PPO in Lab 4</span>
+      <p>Learns only from experience produced by the <b>current</b> version of the policy. After each update, that experience is out of date and is thrown away. Like a student who may only study the homework they did today, then must bin it.</p>
+    </div>
+    <div class="box">
+      <span class="eyebrow">Off-policy · SAC on the real arm</span>
+      <p>Learns from experience produced by <b>any</b> policy: older versions of itself, random exploration, or a <b>human operating the arm</b>. Everything is kept in a <b>replay buffer</b> and reused many times. Like a student who keeps every worked example, including the teacher's, and revises them again and again.</p>
+    </div>
+  </div>
+
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 310" role="img" aria-label="Left: the on-policy loop. The current policy acts, a fresh batch is collected, the policy is updated, and the batch is deleted. Right: the off-policy loop. The policy and a human both put transitions into a replay buffer that keeps up to 100,000 of them; random batches are sampled from it again and again to update the policy, and new weights go back to the policy.">
+      <defs>
+        <marker id="m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-muted"/></marker>
+        <marker id="m1h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-hum"/></marker>
+        <marker id="m1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-acc"/></marker>
+      </defs>
+      <rect x="10" y="10" width="470" height="290" rx="10" class="s-panel"/>
+      <text x="30" y="36" class="t-h">On-policy (PPO · Isaac Lab sim)</text>
+      <rect x="40" y="62" width="180" height="58" rx="6" class="s-hw"/>
+      <text x="130" y="86" class="t-b" text-anchor="middle">Current policy πₖ acts</text>
+      <text x="130" y="104" class="t-m" text-anchor="middle">1024 simulated arms</text>
+      <rect x="280" y="62" width="180" height="58" rx="6" class="s-box"/>
+      <text x="370" y="86" class="t-b" text-anchor="middle">Fresh batch</text>
+      <text x="370" y="104" class="t-m" text-anchor="middle">24 steps × 1024 arms</text>
+      <rect x="280" y="180" width="180" height="58" rx="6" class="s-acc"/>
+      <text x="370" y="204" class="t-b" text-anchor="middle">Update πₖ → πₖ₊₁</text>
+      <text x="370" y="222" class="t-m" text-anchor="middle">a few passes over the batch</text>
+      <rect x="40" y="180" width="180" height="58" rx="6" class="s-pen"/>
+      <text x="130" y="204" class="t-b" text-anchor="middle">Batch deleted</text>
+      <text x="130" y="222" class="t-m" text-anchor="middle">πₖ₊₁ needs its own data</text>
+      <line x1="220" y1="91" x2="278" y2="91" class="ln" marker-end="url(#m1)"/>
+      <line x1="370" y1="120" x2="370" y2="178" class="ln" marker-end="url(#m1)"/>
+      <line x1="280" y1="209" x2="222" y2="209" class="ln" marker-end="url(#m1)"/>
+      <line x1="130" y1="180" x2="130" y2="122" class="ln" marker-end="url(#m1)"/>
+      <text x="245" y="276" class="t-m" text-anchor="middle">Needs huge amounts of fresh data → only practical in simulation</text>
+
+      <rect x="520" y="10" width="470" height="290" rx="10" class="s-panel"/>
+      <text x="540" y="36" class="t-h">Off-policy (SAC · real SO101)</text>
+      <rect x="540" y="58" width="190" height="52" rx="6" class="s-hw"/>
+      <text x="635" y="80" class="t-b" text-anchor="middle">Policy acts on the arm</text>
+      <text x="635" y="97" class="t-m" text-anchor="middle">10 steps per second</text>
+      <rect x="540" y="128" width="190" height="52" rx="6" class="s-human"/>
+      <text x="635" y="150" class="t-b" text-anchor="middle">Human demos + take-overs</text>
+      <text x="635" y="167" class="t-m" text-anchor="middle">not from the policy at all</text>
+      <rect x="790" y="58" width="180" height="122" rx="8" class="s-acc"/>
+      <text x="880" y="80" class="t-b" text-anchor="middle">Replay buffer</text>
+      <rect x="810" y="92" width="140" height="10" rx="2" class="f-line"/>
+      <rect x="810" y="108" width="140" height="10" rx="2" class="f-line"/>
+      <rect x="810" y="124" width="140" height="10" rx="2" class="f-line"/>
+      <rect x="810" y="140" width="140" height="10" rx="2" class="f-line"/>
+      <text x="880" y="168" class="t-m" text-anchor="middle">keeps up to 100,000 steps</text>
+      <rect x="540" y="214" width="430" height="50" rx="6" class="s-box"/>
+      <text x="755" y="236" class="t-b" text-anchor="middle">Sample random batches, update critic + policy, repeat</text>
+      <text x="755" y="253" class="t-m" text-anchor="middle">old and new experience are reused many times</text>
+      <line x1="730" y1="84" x2="788" y2="84" class="ln" marker-end="url(#m1)"/>
+      <line x1="730" y1="154" x2="788" y2="154" class="ln-hum" marker-end="url(#m1h)"/>
+      <line x1="880" y1="180" x2="880" y2="212" class="ln-acc" marker-end="url(#m1a)"/>
+      <path d="M540 239 H 528 V 84 H 538" class="ln dash" marker-end="url(#m1)"/>
+      <text x="755" y="288" class="t-m" text-anchor="middle">Squeezes much more learning out of every second of real robot time</text>
+    </svg>
+    </div>
+    <figcaption><b>Figure 1.</b> The off-policy loop has a memory. Because the update does not care who produced a step, the human's demonstrations and corrections can be learned from in the same way as the robot's own attempts.</figcaption>
+  </figure>
+
+  <h3>Why the real arm needs off-policy learning</h3>
+  <div class="cards">
+    <div class="card"><span class="k">Isaac Lab, Lab 4 run</span><span class="big c-hw">51,200 /s</span><p>steps of experience per second: 1024 arms × 50 Hz. The full run used 1500 × 24 × 1024 ≈ <b>36.9 million</b> steps.</p></div>
+    <div class="card"><span class="k">One real SO101</span><span class="big c-accent">≤ 28,800 /h</span><p>steps per <b>hour</b>: 10 Hz, 20 s episodes plus a 5 s reset. It would take <b>1,280 hours</b> (about 53 days, non-stop) to match the sim run.</p></div>
+    <div class="card"><span class="k">What HIL-SERL does instead</span><span class="big c-good">a few hours</span><p>Reuses every step many times, starts from human demonstrations, and lets a human correct the arm. The LeRobot guide targets training "in just a few hours".</p></div>
+  </div>
+
+  <h3>Key words, in plain language</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Term</th><th>Meaning</th><th>In the SO101 lift task</th></tr></thead>
+      <tbody>
+        <tr><td><b>Policy</b> (actor)</td><td>The network that chooses the action from what the robot sees.</td><td>Sees 2 camera images + joint readings; outputs a small gripper move (Δx, Δy, Δz) and open/stay/close.</td></tr>
+        <tr><td><b>Transition</b></td><td>One recorded step: state, action, reward, next state, done.</td><td>One 0.1 s step of the arm (10 per second).</td></tr>
+        <tr><td><b>Replay buffer</b></td><td>The memory of past transitions the learner samples from.</td><td>Two buffers: <b>online</b> (everything) and <b>offline</b> (human data only).</td></tr>
+        <tr><td><b>Critic</b> (Q-function)</td><td>A second network that predicts "how much reward will I eventually get if I take this action here?"</td><td>Learns that "jaws closed around the cube, moving up" is worth almost 1.0.</td></tr>
+        <tr><td><b>Discount</b> γ</td><td>How much a future reward is worth now. 0.99 means each step of delay costs 1 %.</td><td>A success after 50 steps is worth 0.99⁵⁰ ≈ 0.61 at the start, so faster lifts score higher.</td></tr>
+        <tr><td><b>Temperature</b> α</td><td>How strongly SAC rewards trying varied actions (exploration).</td><td>Start low (0.01) so that the human's corrections are not drowned out by random motion.</td></tr>
+        <tr><td><b>Sparse reward</b></td><td>Reward only at the very end, when the goal is reached.</td><td>0 on every step, 1 when the cube is lifted.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>SAC in three sentences</h3>
+  <p class="col">SAC (Soft Actor-Critic) trains two kinds of network at once. The <b>critic</b> learns to predict the future reward of an action, using the rule "value now = reward now + 0.99 × value of the next step". The <b>actor</b> (the policy) is then pushed toward actions the critic scores highly, while a small bonus for randomness keeps it exploring.</p>
+  <div class="formula">Critic target   y = r + 0.99 × (1 − done) × [ min(Q₁, Q₂)(s′, a′) − α · log π(a′|s′) ]
+Actor goal      choose a  to maximise   Q(s, a) − α · log π(a|s)
+Gripper         a separate "discrete" critic scores {close, stay, open};  its target adds the gripper penalty</div>
+  <p class="col muted" style="font-size:.92rem">Two critics (Q₁, Q₂) are kept and the smaller is used, so the robot does not chase an over-optimistic guess. Slow-moving "target" copies of the critics (updated by 0.5 % each step) keep the targets stable.</p>
+</section>
+
+<!-- ======================= 2 ======================= -->
+<section id="applied">
+  <div class="secnum">2 · Application</div>
+  <h2>How HIL-SERL uses off-policy SAC to teach the lift</h2>
+  <p class="col">SAC alone, with a reward that is 0 almost all the time, would wander for a very long time before it ever lifted the cube by chance. HIL-SERL adds four ingredients so the arm finds success quickly and safely:</p>
+
+  <div class="cards">
+    <div class="card"><span class="k c-human">1 · Demonstrations</span><p>You first drive the arm with a gamepad 15 to 20 times to grasp and lift the cube. These episodes fill the <b>offline buffer</b> before training starts.</p></div>
+    <div class="card"><span class="k c-human">2 · Human take-overs</span><p>During training you hold a button to take control whenever the arm goes wrong. Those corrected steps are saved to <b>both</b> buffers.</p></div>
+    <div class="card"><span class="k c-accent">3 · Success reward</span><p>Reward 1 when the cube is lifted, judged by your button press or by a trained camera classifier. 0 otherwise.</p></div>
+    <div class="card"><span class="k c-hw">4 · Small, safe action space</span><p>The policy moves the gripper by at most 2 cm per step inside a small box above the table. Inverse kinematics converts that into joint angles.</p></div>
+  </div>
+
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 420" role="img" aria-label="HIL-SERL architecture. The actor process on the PC beside the arm runs the policy copy, the SO101 with two cameras, the gamepad held by the human, and processors that compute reward. It sends transitions to the learner process on the GPU. The learner adds every transition to the online buffer and copies human-intervention transitions to the offline buffer, which was pre-filled with demonstrations. Each batch takes half from each buffer, SAC updates the networks, and new weights go back to the actor every 4 seconds.">
+      <defs>
+        <marker id="m2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-muted"/></marker>
+        <marker id="m2h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-hum"/></marker>
+        <marker id="m2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-acc"/></marker>
+        <marker id="m2w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-hw"/></marker>
+      </defs>
+      <!-- actor -->
+      <rect x="10" y="10" width="430" height="400" rx="10" class="s-panel"/>
+      <text x="28" y="34" class="t-h">ACTOR · PC beside the arm</text>
+      <text x="28" y="52" class="t-m">python -m lerobot.rl.actor --config_path train_config.json</text>
+      <rect x="30" y="72" width="185" height="64" rx="6" class="s-hw"/>
+      <text x="122" y="95" class="t-b" text-anchor="middle">SO101 follower</text>
+      <text x="122" y="112" class="t-m" text-anchor="middle">6 servos + front &amp; wrist</text>
+      <text x="122" y="126" class="t-m" text-anchor="middle">cameras</text>
+      <rect x="235" y="72" width="185" height="64" rx="6" class="s-human"/>
+      <text x="327" y="95" class="t-b" text-anchor="middle">You + gamepad</text>
+      <text x="327" y="112" class="t-m" text-anchor="middle">hold RB = take over</text>
+      <text x="327" y="126" class="t-m" text-anchor="middle">Y = success · A = fail</text>
+      <rect x="30" y="176" width="185" height="64" rx="6" class="s-box"/>
+      <text x="122" y="199" class="t-b" text-anchor="middle">Policy copy</text>
+      <text x="122" y="216" class="t-m" text-anchor="middle">chooses Δx Δy Δz +</text>
+      <text x="122" y="230" class="t-m" text-anchor="middle">gripper every 0.1 s</text>
+      <rect x="235" y="176" width="185" height="64" rx="6" class="s-acc"/>
+      <text x="327" y="199" class="t-b" text-anchor="middle">Processors</text>
+      <text x="327" y="216" class="t-m" text-anchor="middle">crop images · reward</text>
+      <text x="327" y="230" class="t-m" text-anchor="middle">penalty · 20 s limit</text>
+      <rect x="30" y="290" width="390" height="58" rx="6" class="s-box"/>
+      <text x="225" y="313" class="t-b" text-anchor="middle">Transition (s, a, r, s′, done)</text>
+      <text x="225" y="331" class="t-m" text-anchor="middle">+ is_intervention flag + gripper penalty</text>
+      <line x1="122" y1="176" x2="122" y2="138" class="ln" marker-end="url(#m2)"/>
+      <text x="116" y="162" class="t-m" text-anchor="end">action</text>
+      <line x1="215" y1="120" x2="270" y2="174" class="ln" marker-end="url(#m2)"/>
+      <text x="262" y="152" class="t-m">readings</text>
+      <line x1="370" y1="136" x2="370" y2="174" class="ln-hum" marker-end="url(#m2h)"/>
+      <text x="376" y="160" class="t-hum">events</text>
+      <line x1="327" y1="240" x2="327" y2="288" class="ln" marker-end="url(#m2)"/>
+
+      <!-- learner -->
+      <rect x="560" y="10" width="430" height="400" rx="10" class="s-panel"/>
+      <text x="578" y="34" class="t-h">LEARNER · GPU</text>
+      <text x="578" y="52" class="t-m">python -m lerobot.rl.learner --config_path train_config.json</text>
+      <rect x="785" y="64" width="190" height="34" rx="6" class="s-human"/>
+      <text x="880" y="86" class="t-b" text-anchor="middle">Recorded demo dataset</text>
+      <rect x="580" y="124" width="185" height="76" rx="6" class="s-box"/>
+      <text x="672" y="147" class="t-b" text-anchor="middle">Online buffer</text>
+      <text x="672" y="165" class="t-m" text-anchor="middle">every transition</text>
+      <text x="672" y="181" class="t-m" text-anchor="middle">capacity 100,000</text>
+      <rect x="785" y="124" width="190" height="76" rx="6" class="s-human"/>
+      <text x="880" y="147" class="t-b" text-anchor="middle">Offline buffer</text>
+      <text x="880" y="165" class="t-m" text-anchor="middle">demos + take-over steps</text>
+      <text x="880" y="181" class="t-m" text-anchor="middle">capacity 100,000</text>
+      <rect x="580" y="230" width="395" height="48" rx="6" class="s-box"/>
+      <text x="777" y="251" class="t-b" text-anchor="middle">Training batch = 50 % online + 50 % offline</text>
+      <text x="777" y="268" class="t-m" text-anchor="middle">online_ratio 0.5 · starts after 100 online steps</text>
+      <rect x="580" y="304" width="395" height="58" rx="6" class="s-acc"/>
+      <text x="777" y="327" class="t-b" text-anchor="middle">SAC update</text>
+      <text x="777" y="345" class="t-m" text-anchor="middle">2 critics + gripper critic · actor · temperature</text>
+      <line x1="880" y1="98" x2="880" y2="122" class="ln-hum" marker-end="url(#m2h)"/>
+      <line x1="765" y1="162" x2="783" y2="162" class="ln-hum" marker-end="url(#m2h)"/>
+      <text x="774" y="216" class="t-hum" text-anchor="middle">copy if intervention</text>
+      <line x1="672" y1="200" x2="672" y2="228" class="ln" marker-end="url(#m2)"/>
+      <line x1="880" y1="200" x2="880" y2="228" class="ln" marker-end="url(#m2)"/>
+      <line x1="777" y1="278" x2="777" y2="302" class="ln-acc" marker-end="url(#m2a)"/>
+
+      <!-- links -->
+      <path d="M420 319 H 500 V 162 H 578" class="ln" marker-end="url(#m2)"/>
+      <text x="506" y="246" class="t-m">transitions</text>
+      <text x="506" y="260" class="t-m">(gRPC)</text>
+      <path d="M777 362 V 390 H 20 V 208 H 28" class="ln-hw dash" marker-end="url(#m2w)"/>
+      <text x="450" y="384" class="t-hw" text-anchor="middle">new policy weights every 4 s</text>
+    </svg>
+    </div>
+    <figcaption><b>Figure 2.</b> The actor keeps the robot moving in real time while the learner trains on the GPU, so learning never pauses the arm. The offline buffer is what makes human data count: half of every batch comes from it, so the arm keeps re-studying how a person did the lift.</figcaption>
+  </figure>
+
+  <h3>What one transition contains for the lift task</h3>
+  <div class="anat">
+    <div class="a-s"><b>state s</b>front image 128×128 · wrist image 128×128 · 6 joint positions (degrees, gripper 0–100) · optional joint velocities</div>
+    <div class="a-a"><b>action a</b>Δx, Δy, Δz ∈ [−1, 1], each × 0.02 m · gripper 0 close / 1 stay / 2 open</div>
+    <div class="a-r"><b>reward r</b>1.0 if the cube is lifted this step, otherwise 0.0</div>
+    <div class="a-n"><b>next state s′</b>the same readings 0.1 s later</div>
+    <div class="a-d"><b>done</b>true on success, failure button, or step 200 (20 s)</div>
+    <div class="a-c"><b>extra info</b>is_intervention (did you drive this step?) · discrete_penalty (gripper)</div>
+  </div>
+
+  <h3>One training episode, step by step</h3>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 300" role="img" aria-label="Timeline of one example episode of 92 steps. The policy acts for steps 0 to 34, the human takes over from step 35 to 61 and closes the gripper at step 58, then the policy acts again and lifts the cube; success is detected at step 92 with reward 1 and the episode ends. All 93 transitions go to the online buffer; the 27 human steps also go to the offline buffer.">
+      <text x="10" y="58" class="t-lane">WHO ACTS</text>
+      <rect x="150" y="40" width="315" height="30" class="s-hw"/>
+      <text x="307" y="60" class="t-hw" text-anchor="middle">policy explores</text>
+      <rect x="465" y="40" width="243" height="30" class="s-human"/>
+      <text x="586" y="60" class="t-hum" text-anchor="middle">you hold RB and steer</text>
+      <rect x="708" y="40" width="279" height="30" class="s-hw"/>
+      <text x="847" y="60" class="t-hw" text-anchor="middle">policy lifts</text>
+
+      <text x="10" y="108" class="t-lane">GRIPPER</text>
+      <rect x="150" y="90" width="531" height="30" class="f-code"/>
+      <text x="300" y="110" class="t-m" text-anchor="middle">open</text>
+      <rect x="681" y="90" width="306" height="30" class="s-box"/>
+      <text x="840" y="110" class="t-m" text-anchor="middle">closed on cube</text>
+      <line x1="681" y1="86" x2="681" y2="124" class="ln" style="stroke:var(--penalty);stroke-width:2"/>
+      <text x="676" y="136" class="t-pen" text-anchor="end">step 58: close · penalty −0.02 (if enabled)</text>
+
+      <text x="10" y="176" class="t-lane">REWARD</text>
+      <line x1="150" y1="180" x2="987" y2="180" class="grid"/>
+      <polyline points="150,180 978,180 978,150" class="ln-acc"/>
+      <circle cx="978" cy="150" r="4.5" class="f-acc"/>
+      <text x="970" y="160" class="t-acc" text-anchor="end">step 92: classifier p = 0.86 → r = 1, done</text>
+      <text x="300" y="173" class="t-m" text-anchor="middle">r = 0 on every step before</text>
+
+      <text x="10" y="216" class="t-lane">SAVED TO</text>
+      <rect x="150" y="204" width="837" height="14" rx="3" class="s-box"/>
+      <text x="155" y="215" class="t-m">online buffer: all 93 steps</text>
+      <rect x="465" y="224" width="243" height="14" rx="3" class="s-human"/>
+      <text x="470" y="235" class="t-m">offline buffer: 27 human steps</text>
+
+      <g class="t-m" text-anchor="middle">
+        <text x="150" y="268">0</text><text x="240" y="268">10</text><text x="330" y="268">20</text><text x="420" y="268">30</text><text x="510" y="268">40</text><text x="600" y="268">50</text><text x="690" y="268">60</text><text x="780" y="268">70</text><text x="870" y="268">80</text><text x="960" y="268">90</text>
+      </g>
+      <line x1="150" y1="252" x2="987" y2="252" class="grid"/>
+      <text x="568" y="290" class="t-m" text-anchor="middle">policy step (0.1 s each) → episode lasted 9.3 s</text>
+    </svg>
+    </div>
+    <figcaption><b>Figure 3.</b> An example episode (numbers illustrative, rules exact). The policy struggled, you steered it to the cube and closed the gripper, then it finished the lift. The learner gets 93 new transitions; the 27 you produced are also kept as extra "demonstration" data.</figcaption>
+  </figure>
+
+  <h3>How a training session usually develops</h3>
+  <div class="phases">
+    <div class="phase">
+      <span class="eyebrow c-human">Early</span>
+      <h4>You do a lot of the work</h4>
+      <div class="lbl"><span>your share of control</span><span>high</span></div>
+      <div class="meter"><i style="width:80%;background:var(--human)"></i></div>
+      <p style="font-size:.9rem">Let it explore a few episodes first, then step in whenever it drifts away from the cube. Most successes still need your help.</p>
+    </div>
+    <div class="phase">
+      <span class="eyebrow c-accent">Middle</span>
+      <h4>Short corrections only</h4>
+      <div class="lbl"><span>your share of control</span><span>medium</span></div>
+      <div class="meter"><i style="width:40%;background:var(--human)"></i></div>
+      <p style="font-size:.9rem">The arm reaches the cube on its own. You give brief nudges, often just the grasp. Avoid long take-overs.</p>
+    </div>
+    <div class="phase">
+      <span class="eyebrow c-good">Late</span>
+      <h4>The arm lifts on its own</h4>
+      <div class="lbl"><span>your share of control</span><span>low</span></div>
+      <div class="meter"><i style="width:8%;background:var(--human)"></i></div>
+      <p style="font-size:.9rem">The intervention rate in Weights &amp; Biases falls toward zero while the episodic reward stays near 1. Time to evaluate.</p>
+    </div>
+  </div>
+  <p class="muted" style="font-size:.86rem">The meters show the typical direction of change described in the LeRobot guide, not measured values.</p>
+</section>
+
+<!-- ======================= 3 ======================= -->
+<section id="reward">
+  <div class="secnum">3 · Rewards &amp; settings</div>
+  <h2>What the SO101 is rewarded for, and every setting that matters</h2>
+  <p class="col">Unlike the six shaped terms in Isaac Lab, the real arm has one main reward. The robot hardware itself never produces a reward: <code>RobotEnv.step()</code> returns 0.0, and processor steps add the reward afterwards.</p>
+
+  <div class="formula">reward at step t  =  1.0   if the cube is judged lifted at step t   (episode ends)
+                  =  0.0   otherwise
+gripper critic only:  + discrete_penalty  (−0.02 when the command swings the gripper fully open↔closed, if enabled)</div>
+
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Who decides</th><th>How</th><th>Value</th><th>Setting</th></tr></thead>
+      <tbody>
+        <tr><td><span class="pill p-hum">You</span></td><td>Press success (gamepad Y, or <code>s</code> on the keyboard teleop) when the cube is clearly off the table</td><td class="num">1.0, done</td><td><code>reset.terminate_on_success: true</code></td></tr>
+        <tr><td><span class="pill p-vis">Camera classifier</span> optional</td><td>A small image model trained on your recorded episodes predicts "lifted" from the two cropped images</td><td class="num">1.0 if p &gt; threshold</td><td><code>reward_classifier.pretrained_path</code>, <code>success_threshold</code> 0.5 (guide example 0.7)</td></tr>
+        <tr><td><span class="pill p-no">You (fail)</span></td><td>Press failure (gamepad A) if the cube falls or the arm gets stuck</td><td class="num">0.0, done</td><td>—</td></tr>
+        <tr><td><span class="pill p-no">Clock</span></td><td>No success after <code>control_time_s × fps</code> = 20 × 10 = 200 steps</td><td class="num">0.0, done</td><td><code>reset.control_time_s</code></td></tr>
+        <tr><td><span class="pill p-pen">Gripper encoder</span> optional</td><td>Gripper reads open (&lt; 10 of 100) and is commanded closed, or the reverse</td><td class="num">−0.02</td><td><code>gripper.gripper_penalty</code> (default 0.0 = off)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>How a single +1 teaches every earlier step</h3>
+  <p class="col">With only one reward per episode, the critic spreads it backwards using the discount. For the episode in Figure 3 (success at step 92), once the critic has learned, its targets look like this (exploration bonus left out to keep the numbers simple):</p>
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 200" role="img" aria-label="Value targets along the example episode: step 0 is 0.397, step 30 is 0.536, step 60 is 0.725, step 88 is 0.961, step 89 is 0.970, step 90 is 0.980, step 91 is 0.990, and step 92, the success step, is 1.000. Value flows backwards from the success.">
+      <defs><marker id="m3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-acc"/></marker></defs>
+      <g>
+        <!-- bars: base y=140, height = value*90 -->
+        <rect x="20"  y="20" width="100" height="120" rx="6" class="s-box"/><rect x="40"  y="104.3" width="60" height="35.7" class="f-acc" opacity=".85"/><text x="70"  y="98"  class="t-b" text-anchor="middle">0.397</text><text x="70"  y="160" class="t-m" text-anchor="middle">step 0</text>
+        <rect x="140" y="20" width="100" height="120" rx="6" class="s-box"/><rect x="160" y="91.8"  width="60" height="48.2" class="f-acc" opacity=".85"/><text x="190" y="86"  class="t-b" text-anchor="middle">0.536</text><text x="190" y="160" class="t-m" text-anchor="middle">step 30</text>
+        <rect x="260" y="20" width="100" height="120" rx="6" class="s-box"/><rect x="280" y="74.8"  width="60" height="65.2" class="f-acc" opacity=".85"/><text x="310" y="69"  class="t-b" text-anchor="middle">0.725</text><text x="310" y="160" class="t-m" text-anchor="middle">step 60</text>
+        <rect x="380" y="20" width="100" height="120" rx="6" class="s-box"/><rect x="400" y="53.5"  width="60" height="86.5" class="f-acc" opacity=".85"/><text x="430" y="48"  class="t-b" text-anchor="middle">0.961</text><text x="430" y="160" class="t-m" text-anchor="middle">step 88</text>
+        <rect x="500" y="20" width="100" height="120" rx="6" class="s-box"/><rect x="520" y="52.7"  width="60" height="87.3" class="f-acc" opacity=".85"/><text x="550" y="47"  class="t-b" text-anchor="middle">0.970</text><text x="550" y="160" class="t-m" text-anchor="middle">step 89</text>
+        <rect x="620" y="20" width="100" height="120" rx="6" class="s-box"/><rect x="640" y="51.8"  width="60" height="88.2" class="f-acc" opacity=".85"/><text x="670" y="46"  class="t-b" text-anchor="middle">0.980</text><text x="670" y="160" class="t-m" text-anchor="middle">step 90</text>
+        <rect x="740" y="20" width="100" height="120" rx="6" class="s-box"/><rect x="760" y="50.9"  width="60" height="89.1" class="f-acc" opacity=".85"/><text x="790" y="45"  class="t-b" text-anchor="middle">0.990</text><text x="790" y="160" class="t-m" text-anchor="middle">step 91</text>
+        <rect x="860" y="20" width="120" height="120" rx="6" class="s-acc"/><rect x="890" y="50"    width="60" height="90"   class="f-acc"/><text x="920" y="44"  class="t-b" text-anchor="middle">1.000</text><text x="920" y="160" class="t-acc" text-anchor="middle">step 92: r = 1</text>
+      </g>
+      <line x1="975" y1="186" x2="30" y2="186" class="ln-acc" marker-end="url(#m3)"/>
+      <text x="500" y="181" class="t-acc" text-anchor="middle">value flows backwards: target = r + 0.99 × value of next step</text>
+    </svg>
+    </div>
+    <figcaption><b>Figure 4.</b> Bars are drawn to scale (0.99<sup>92 − k</sup>). Step 91 has reward 0 but target 0 + 0.99 × 1.0 = 0.99, step 90 gets 0.99 × 0.99 = 0.98, and so on. A failed episode gives every step a target near 0, so the critic learns which situations lead to a lift and which do not.</figcaption>
+  </figure>
+
+  <h3>All the parameters for the lift task</h3>
+  <p class="col">Values are LeRobot 0.6.2 defaults unless marked "guide" (the LeRobot HIL-SERL guide's example) or "set" (you must choose it). Section 4 shows where each one goes in the config files.</p>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Parameter</th><th>Config key</th><th>Value for the lift</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr class="grp"><td colspan="4">Episode timing · env_config.json → env</td></tr>
+        <tr><td>Control rate</td><td><code>fps</code></td><td class="num">10 Hz (guide)</td><td>One policy step every 0.1 s.</td></tr>
+        <tr><td>Episode length</td><td><code>processor.reset.control_time_s</code></td><td class="num">20 s → 200 steps</td><td>Time limit; ends with reward 0. A lift should take 5–10 s.</td></tr>
+        <tr><td>Reset wait</td><td><code>processor.reset.reset_time_s</code></td><td class="num">5 s</td><td>Time to put the cube back after the arm returns home.</td></tr>
+        <tr><td>Home pose</td><td><code>processor.reset.fixed_reset_joint_positions</code></td><td>set (6 values, degrees; gripper 0–100)</td><td>Where every episode starts. Pick a pose above the workspace with the gripper open.</td></tr>
+        <tr><td>Stop on success</td><td><code>processor.reset.terminate_on_success</code></td><td class="num">true</td><td>Set false only when recording data for the classifier.</td></tr>
+
+        <tr class="grp"><td colspan="4">Reward</td></tr>
+        <tr><td>Success value</td><td><code>processor.reward_classifier.success_reward</code></td><td class="num">1.0</td><td>Reward on the success step.</td></tr>
+        <tr><td>Classifier model</td><td><code>processor.reward_classifier.pretrained_path</code></td><td>optional</td><td>Leave out to label success yourself with the gamepad.</td></tr>
+        <tr><td>Classifier threshold</td><td><code>processor.reward_classifier.success_threshold</code></td><td class="num">0.5 (guide 0.7)</td><td>Higher = fewer false "lifted" rewards.</td></tr>
+        <tr><td>Gripper penalty</td><td><code>processor.gripper.gripper_penalty</code></td><td class="num">0.0 → try −0.02</td><td>Discourages pointless open/close switching.</td></tr>
+
+        <tr class="grp"><td colspan="4">Action &amp; safety · the hardware limits</td></tr>
+        <tr><td>Arm model</td><td><code>processor.inverse_kinematics.urdf_path</code>, <code>target_frame_name</code></td><td><code>so101_new_calib.urdf</code>, <code>gripper</code></td><td>Forward / inverse kinematics between joints and gripper position.</td></tr>
+        <tr><td>Workspace box</td><td><code>processor.inverse_kinematics.end_effector_bounds</code></td><td>set, e.g. min [0.16, −0.08, 0.03] max [0.24, 0.20, 0.10] m</td><td>Gripper targets are clipped into this box. Small box = faster learning.</td></tr>
+        <tr><td>Step size</td><td><code>processor.inverse_kinematics.end_effector_step_sizes</code></td><td class="num">x, y, z 0.02 m (guide)</td><td>Action 1.0 moves the gripper 2 cm in one step.</td></tr>
+        <tr><td>Jump limit</td><td><code>EEBoundsAndSafety.max_ee_step_m</code> (in code)</td><td class="num">0.05 m</td><td>A bigger jump in one step stops the loop with an error.</td></tr>
+        <tr><td>Gripper</td><td><code>processor.gripper.use_gripper</code>, <code>processor.max_gripper_pos</code></td><td class="num">true, 100</td><td>Adds the open/stay/close action; gripper range 0–100.</td></tr>
+
+        <tr class="grp"><td colspan="4">Robot hardware · env_config.json → env.robot</td></tr>
+        <tr><td>Robot type</td><td><code>robot.type</code>, <code>port</code>, <code>id</code></td><td><code>so101_follower</code>, set, set</td><td><code>id</code> selects your calibration file.</td></tr>
+        <tr><td>Servo controller</td><td><code>position_p/i/d_coefficient</code></td><td class="num">16 / 0 / 32</td><td>How stiffly the STS3215 servos track targets (real counterpart of Isaac K and D).</td></tr>
+        <tr><td>Gripper strength</td><td>written at connect</td><td class="num">torque limit 50 %</td><td>Protects the gripper servo; enough to hold a light cube.</td></tr>
+        <tr><td>Cameras</td><td><code>robot.cameras</code></td><td>front + wrist (set)</td><td>Images for the policy and the classifier.</td></tr>
+
+        <tr class="grp"><td colspan="4">Observation</td></tr>
+        <tr><td>Image crop</td><td><code>processor.image_preprocessing.crop_params_dict</code></td><td>from the crop tool (Step 6)</td><td>Removes background that would confuse learning.</td></tr>
+        <tr><td>Image size</td><td><code>processor.image_preprocessing.resize_size</code></td><td class="num">[128, 128]</td><td>64×64 also works if GPU memory is short.</td></tr>
+        <tr><td>Joint velocity</td><td><code>processor.observation.add_joint_velocity_to_observation</code></td><td>optional</td><td>(angle now − angle before) ÷ 0.1 s.</td></tr>
+
+        <tr class="grp"><td colspan="4">SAC learning · train_config.json → algorithm / policy</td></tr>
+        <tr><td>Algorithm</td><td><code>algorithm.type</code>, <code>policy.type</code></td><td><code>sac</code>, <code>gaussian_actor</code></td><td>SAC with a Gaussian (continuous) actor.</td></tr>
+        <tr><td>Discount</td><td><code>algorithm.discount</code></td><td class="num">0.99</td><td>Figure 4.</td></tr>
+        <tr><td>Exploration</td><td><code>algorithm.temperature_init</code></td><td class="num">1.0 → 0.01 (guide)</td><td>Too high makes your take-overs ineffective.</td></tr>
+        <tr><td>Learning rates</td><td><code>actor_lr</code>, <code>critic_lr</code>, <code>temperature_lr</code></td><td class="num">3e-4 each</td><td>Size of each network update.</td></tr>
+        <tr><td>Critics</td><td><code>num_critics</code>, <code>critic_target_update_weight</code></td><td class="num">2, 0.005</td><td>Two critics, slow target copies.</td></tr>
+        <tr><td>Gripper actions</td><td><code>policy.num_discrete_actions</code></td><td class="num">3</td><td>close / stay / open.</td></tr>
+        <tr><td>Image encoder</td><td><code>policy.vision_encoder_name</code>, <code>freeze_vision_encoder</code></td><td><code>lerobot/resnet10</code>, true</td><td>Pretrained, frozen feature extractor for the images.</td></tr>
+
+        <tr class="grp"><td colspan="4">Replay buffers &amp; actor-learner</td></tr>
+        <tr><td>Buffer sizes</td><td><code>policy.online_buffer_capacity</code>, <code>offline_buffer_capacity</code></td><td class="num">100,000 each</td><td>About 2.8 h of robot steps each.</td></tr>
+        <tr><td>Warm-up</td><td><code>policy.online_step_before_learning</code></td><td class="num">100 steps</td><td>Learner waits for 100 online transitions (10 s) before updating.</td></tr>
+        <tr><td>Batch mix</td><td><code>online_ratio</code></td><td class="num">0.5</td><td>Half of each batch from human data.</td></tr>
+        <tr><td>Weight push</td><td><code>policy.actor_learner_config.policy_parameters_push_frequency</code></td><td class="num">4 s (guide: 1–2 s)</td><td>How fresh the actor's copy of the policy is.</td></tr>
+        <tr><td>Training limit</td><td><code>policy.online_steps</code></td><td class="num">1,000,000</td><td>Upper bound; you normally stop much earlier.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ======================= 4 ======================= -->
+<section id="procedure">
+  <div class="secnum">4 · Procedure</div>
+  <h2>Collecting the data and training, step by step</h2>
+  <p class="col">The work splits into five phases. Each phase produces something the next one needs.</p>
+
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 1000 220" role="img" aria-label="Workflow in five phases. Set up, steps 1 to 3, produces calibration and workspace bounds. Collect, steps 4 and 5, produces the demonstration dataset. Prepare, steps 6 and 7, produces crop parameters and an optional reward classifier. Train, steps 8 and 9, produces policy checkpoints. Evaluate, step 10, produces a success rate; if it is too low you return to collect more demonstrations or adjust the box.">
+      <defs><marker id="m4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="f-muted"/></marker></defs>
+      <rect x="10"  y="20" width="170" height="70" rx="8" class="s-hw"/><text x="95"  y="46" class="t-h" text-anchor="middle">Set up</text><text x="95"  y="68" class="t-m" text-anchor="middle">steps 1–3</text>
+      <rect x="210" y="20" width="170" height="70" rx="8" class="s-human"/><text x="295" y="46" class="t-h" text-anchor="middle">Collect</text><text x="295" y="68" class="t-m" text-anchor="middle">steps 4–5</text>
+      <rect x="410" y="20" width="170" height="70" rx="8" class="s-vision"/><text x="495" y="46" class="t-h" text-anchor="middle">Prepare</text><text x="495" y="68" class="t-m" text-anchor="middle">steps 6–7</text>
+      <rect x="610" y="20" width="170" height="70" rx="8" class="s-acc"/><text x="695" y="46" class="t-h" text-anchor="middle">Train</text><text x="695" y="68" class="t-m" text-anchor="middle">steps 8–9</text>
+      <rect x="810" y="20" width="170" height="70" rx="8" class="s-good"/><text x="895" y="46" class="t-h" text-anchor="middle">Evaluate</text><text x="895" y="68" class="t-m" text-anchor="middle">step 10</text>
+      <line x1="180" y1="55" x2="208" y2="55" class="ln" marker-end="url(#m4)"/>
+      <line x1="380" y1="55" x2="408" y2="55" class="ln" marker-end="url(#m4)"/>
+      <line x1="580" y1="55" x2="608" y2="55" class="ln" marker-end="url(#m4)"/>
+      <line x1="780" y1="55" x2="808" y2="55" class="ln" marker-end="url(#m4)"/>
+      <text x="20"  y="114" class="t-lane">PRODUCES</text>
+      <text x="95"  y="134" class="t" text-anchor="middle">calibration file</text><text x="95" y="152" class="t" text-anchor="middle">workspace bounds</text>
+      <text x="295" y="134" class="t" text-anchor="middle">env_config.json</text><text x="295" y="152" class="t" text-anchor="middle">15–20 demo episodes</text>
+      <text x="495" y="134" class="t" text-anchor="middle">crop parameters</text><text x="495" y="152" class="t" text-anchor="middle">reward classifier (opt.)</text>
+      <text x="695" y="134" class="t" text-anchor="middle">train_config.json</text><text x="695" y="152" class="t" text-anchor="middle">policy checkpoints</text>
+      <text x="895" y="134" class="t" text-anchor="middle">success rate over</text><text x="895" y="152" class="t" text-anchor="middle">10+ hands-off trials</text>
+      <path d="M895 160 V 196 H 295 V 158" class="ln dash" marker-end="url(#m4)"/>
+      <text x="595" y="190" class="t-m" text-anchor="middle">too low? record more demos, shrink the box, or retrain the classifier</text>
+    </svg>
+    </div>
+    <figcaption><b>Figure 5.</b> The whole workflow. Most of your hands-on time goes into Collect and Train, where you are the teacher.</figcaption>
+  </figure>
+
+  <div class="steps">
+    <!-- 1 -->
+    <div class="step"><div class="n">1</div><div class="body">
+      <span class="phase-tag">Set up</span>
+      <h4>Install LeRobot with HIL-SERL and check the hardware</h4>
+<pre>pip install -e ".[hilserl]"
+git clone https://github.com/TheRobotStudio/SO-ARM100.git   <span class="cm"># URDF: SO-ARM100/Simulation/SO101/so101_new_calib.urdf</span>
+lerobot-find-port        <span class="cm"># USB port of the follower (and leader)</span>
+lerobot-find-cameras opencv   <span class="cm"># index of the front and wrist cameras</span></pre>
+      <p>You need: the SO101 follower, a <b>gamepad</b> (recommended by the guide), a front camera and a wrist camera, an NVIDIA GPU, a 2–3 cm cube, and the SO101 leader arm for Step 3.</p>
+    </div></div>
+    <!-- 2 -->
+    <div class="step"><div class="n">2</div><div class="body">
+      <span class="phase-tag">Set up</span>
+      <h4>Calibrate the arm</h4>
+<pre>lerobot-calibrate --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=my_follower
+lerobot-calibrate --teleop.type=so101_leader --teleop.port=/dev/ttyACM1 --teleop.id=my_leader</pre>
+      <div class="check"><b>Check:</b> the joint readings must match the URDF's zero pose, or the kinematics put the gripper in the wrong place and the workspace box is wrong.</div>
+    </div></div>
+    <!-- 3 -->
+    <div class="step"><div class="n">3</div><div class="body">
+      <span class="phase-tag">Set up</span>
+      <h4>Find the workspace box for the lift</h4>
+<pre>lerobot-find-joint-limits \
+  --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=my_follower \
+  --teleop.type=so101_leader  --teleop.port=/dev/ttyACM1 --teleop.id=my_leader \
+  --urdf_path=SO-ARM100/Simulation/SO101/so101_new_calib.urdf \
+  --target_frame_name=gripper --teleop_time_s=30</pre>
+      <p>For 30 s, move the leader so the gripper visits every place the cube can be, down to grasp height and up to lift height (a few cm above the table). The script prints <code>max_ee</code> and <code>min_ee</code>: copy them into <code>end_effector_bounds</code>.</p>
+      <div class="check"><b>Check:</b> keep the box small. Every centimetre you add is space the policy has to explore with a reward that is almost always 0.</div>
+    </div></div>
+    <!-- 4 -->
+    <div class="step"><div class="n">4</div><div class="body">
+      <span class="phase-tag">Collect</span>
+      <h4>Get the example configs and fill in env_config.json</h4>
+<pre>hf download lerobot/config_examples rl/env_config.json rl/train_config.json --repo-type dataset --local-dir .</pre>
+      <p>Edit <code>rl/env_config.json</code>. The block below shows the settings for an SO101 lift in recording mode; merge them into the downloaded file. Replace every port, id, camera index, bound and pose with your own.</p>
+<pre>{
+  "env": {
+    "type": "gym_manipulator",
+    "name": "real_robot",
+    "fps": 10,
+    "robot": {
+      "type": "so101_follower",
+      "port": "/dev/ttyACM0",
+      "id": "my_follower",
+      "cameras": {
+        "front": {"type": "opencv", "index_or_path": 0, "width": 640, "height": 480, "fps": 30},
+        "wrist": {"type": "opencv", "index_or_path": 2, "width": 640, "height": 480, "fps": 30}
+      }
+    },
+    "teleop": {"type": "gamepad", "use_gripper": true},
+    "processor": {
+      "control_mode": "gamepad",
+      "observation": {"add_joint_velocity_to_observation": true, "display_cameras": false},
+      "image_preprocessing": {"crop_params_dict": {}, "resize_size": [128, 128]},
+      "gripper": {"use_gripper": true, "gripper_penalty": -0.02},
+      "reset": {
+        "fixed_reset_joint_positions": [0.0, -20.0, 20.0, 70.0, 0.0, 40.0],
+        "reset_time_s": 5.0,
+        "control_time_s": 20.0,
+        "terminate_on_success": true
+      },
+      "inverse_kinematics": {
+        "urdf_path": "SO-ARM100/Simulation/SO101/so101_new_calib.urdf",
+        "target_frame_name": "gripper",
+        "end_effector_bounds": {"min": [0.16, -0.08, 0.03], "max": [0.24, 0.20, 0.10]},
+        "end_effector_step_sizes": {"x": 0.02, "y": 0.02, "z": 0.02}
+      },
+      "max_gripper_pos": 100
+    }
+  },
+  "dataset": {
+    "repo_id": "&lt;hf_user&gt;/so101_lift_cube",
+    "root": null,
+    "task": "pick and lift the cube",
+    "num_episodes_to_record": 20,
+    "replay_episode": null,
+    "push_to_hub": true
+  },
+  "mode": "record",
+  "device": "cuda"
+}</pre>
+      <p class="muted" style="font-size:.88rem">The home pose numbers are placeholders: move the arm to a safe pose above the workspace and read its joint values (degrees; gripper 0–100). Camera keys <code>front</code> and <code>wrist</code> become <code>observation.images.front</code> and <code>observation.images.wrist</code>.</p>
+    </div></div>
+    <!-- 5 -->
+    <div class="step"><div class="n">5</div><div class="body">
+      <span class="phase-tag">Collect</span>
+      <h4>Record 15–20 demonstrations</h4>
+<pre>python -m lerobot.rl.gym_manipulator --config_path rl/env_config.json</pre>
+      <ol class="tight">
+        <li>The arm moves to the home pose; place the cube at a new spot inside the box during the 5 s reset.</li>
+        <li><b>Hold RB</b> (the intervention button) the whole time you drive: without it the arm stays still. Use the sticks to bring the gripper over the cube and lower it, then press the gripper-close button (see the gamepad map image in the LeRobot guide; button indices vary by controller).</li>
+        <li>Lift the cube a few centimetres, then press <b>Y</b> (success). The episode is saved with reward 1 on that step.</li>
+        <li>Made a mess? Press <b>X</b> (re-record) to discard it. Press <b>A</b> to end an episode as a failure.</li>
+      </ol>
+      <div class="two">
+        <div class="box"><span class="eyebrow c-good">Do</span>
+          <ul class="tight" style="font-size:.9rem">
+            <li>Vary the cube position across the whole box.</li>
+            <li>Move smoothly and directly; finish in 5–10 s.</li>
+            <li>Lift clearly, so success is visible in both cameras.</li>
+            <li>Keep lighting and background the same as during training.</li>
+          </ul></div>
+        <div class="box"><span class="eyebrow c-penalty">Avoid</span>
+          <ul class="tight" style="font-size:.9rem">
+            <li>Hesitating, re-grasping or opening and closing repeatedly.</li>
+            <li>Pressing success before the cube is off the table.</li>
+            <li>People or moving objects in the camera view.</li>
+            <li>Cube positions outside the workspace box.</li>
+          </ul></div>
+      </div>
+      <div class="check"><b>Data budget:</b> 20 episodes × about 8 s × 10 steps/s ≈ 1,600 transitions. These pre-fill the offline buffer.</div>
+    </div></div>
+    <!-- 6 -->
+    <div class="step"><div class="n">6</div><div class="body">
+      <span class="phase-tag">Prepare</span>
+      <h4>Crop the camera images to the workspace</h4>
+<pre>python -m lerobot.rl.crop_dataset_roi --repo-id &lt;hf_user&gt;/so101_lift_cube</pre>
+      <p>For each camera, draw a rectangle around the area where the gripper and cube move, then press <code>c</code>. The tool prints <code>(top, left, height, width)</code> for each camera and writes a cropped copy, <code>&lt;hf_user&gt;/so101_lift_cube_cropped_resized</code>. Paste the numbers into <code>crop_params_dict</code> in both config files.</p>
+    </div></div>
+    <!-- 7 -->
+    <div class="step"><div class="n">7</div><div class="body">
+      <span class="phase-tag">Prepare · optional</span>
+      <h4>Train a reward classifier (so you no longer press success)</h4>
+      <ol class="tight">
+        <li>Record about 20 more episodes with <code>"terminate_on_success": false</code>: after pressing success, keep the cube in the air for a few seconds so there are many "lifted" frames.</li>
+        <li>Train: <code>lerobot-train --config_path reward_classifier_train_config.json</code> (reward model type <code>reward_classifier</code>, ResNet-10 encoder, 2 cameras, 128×128; example config in the guide).</li>
+        <li>Test: set <code>reward_classifier.pretrained_path</code> and <code>success_threshold: 0.7</code>, set <code>"mode": null</code>, run <code>gym_manipulator</code> again and check it fires only when the cube is really lifted.</li>
+      </ol>
+      <p class="note tip">Skip this step for your first runs. Pressing success yourself is simpler and always correct.</p>
+    </div></div>
+    <!-- 8 -->
+    <div class="step"><div class="n">8</div><div class="body">
+      <span class="phase-tag">Train</span>
+      <h4>Fill in train_config.json</h4>
+      <p>Start from the downloaded <code>rl/train_config.json</code>. Copy your whole <code>env</code> block into it (with the crop numbers), point <code>dataset</code> at the cropped demos, and check these keys:</p>
+<pre>{
+  "dataset": {"repo_id": "&lt;hf_user&gt;/so101_lift_cube_cropped_resized"},
+  "env":     { <span class="cm">... same env block as env_config.json, crop_params_dict filled ...</span> },
+  "policy": {
+    "type": "gaussian_actor",
+    "device": "cuda",
+    "storage_device": "cuda",
+    "vision_encoder_name": "lerobot/resnet10",
+    "freeze_vision_encoder": true,
+    "num_discrete_actions": 3,
+    "online_step_before_learning": 100,
+    "online_buffer_capacity": 100000,
+    "offline_buffer_capacity": 100000,
+    "actor_learner_config": {"learner_host": "127.0.0.1", "learner_port": 50051,
+                             "policy_parameters_push_frequency": 2}
+  },
+  "algorithm": {"type": "sac", "discount": 0.99, <span class="hl">"temperature_init": 0.01</span>},
+  "online_ratio": 0.5,
+  "wandb": {"enable": true, "project": "so101-hilserl-lift"}
+}</pre>
+      <div class="check"><b>Check:</b> the policy's <code>input_features</code> / <code>output_features</code> in the example must match your cameras and state size (6 positions, or 12 with joint velocities).</div>
+    </div></div>
+    <!-- 9 -->
+    <div class="step"><div class="n">9</div><div class="body">
+      <span class="phase-tag">Train</span>
+      <h4>Start the learner, then the actor, and teach</h4>
+<pre><span class="cm"># terminal 1 (GPU)</span>
+python -m lerobot.rl.learner --config_path rl/train_config.json
+<span class="cm"># terminal 2 (same PC or the one wired to the arm)</span>
+python -m lerobot.rl.actor --config_path rl/train_config.json</pre>
+      <div class="tbl">
+        <table style="min-width:560px">
+          <thead><tr><th>Situation</th><th>What you do</th><th>Gamepad</th></tr></thead>
+          <tbody>
+            <tr><td>First few episodes</td><td>Watch; let it explore</td><td>—</td></tr>
+            <tr><td>Arm drifts away or will clearly miss</td><td>Take over briefly, steer to the cube, release</td><td>hold <b>RB</b></td></tr>
+            <tr><td>Cube clearly lifted (no classifier)</td><td>Mark success</td><td><b>Y</b></td></tr>
+            <tr><td>Cube dropped / arm stuck</td><td>End as failure</td><td><b>A</b></td></tr>
+            <tr><td>Arm reaches the cube reliably</td><td>Only help with the grasp, then less and less</td><td>short <b>RB</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="check"><b>Watch in Weights &amp; Biases:</b> "Intervention rate" should fall over time and "Episodic reward" should rise toward 1. If the intervention rate stays high, see the troubleshooting table.</div>
+    </div></div>
+    <!-- 10 -->
+    <div class="step"><div class="n">10</div><div class="body">
+      <span class="phase-tag">Evaluate</span>
+      <h4>Test hands-off and keep the best checkpoint</h4>
+      <p>Run the actor again without intervening for at least 10 episodes, placing the cube at different spots. Count successes (episodic reward 1) and note the time to lift. Checkpoints are saved in the learner's output folder every <code>save_freq</code> steps.</p>
+      <p class="note">LeRobot also contains <code>lerobot.rl.eval_policy</code>, but in the version checked it does not run the reward processors, so its reward is always 0 on the real arm. Counting hands-off successes yourself is more reliable.</p>
+    </div></div>
+  </div>
+
+  <h3>Troubleshooting</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>What you see</th><th>Likely cause</th><th>What to try</th></tr></thead>
+      <tbody>
+        <tr><td>Learner prints nothing about updates</td><td>Fewer than 100 online transitions yet</td><td>Wait about 10 s of robot time; check the actor is connected (port 50051).</td></tr>
+        <tr><td><code>TypeError ... get_teleop_events()</code></td><td>Teleoperator without event support</td><td>Use <code>gamepad</code> or the keyboard end-effector teleop.</td></tr>
+        <tr><td><code>ValueError: EE jump ... &gt; 0.05m</code></td><td>Calibration or kinematics mismatch makes the target jump</td><td>Recalibrate; check <code>urdf_path</code> and <code>target_frame_name</code>.</td></tr>
+        <tr><td>Arm presses against the box edges</td><td>Box too small or in the wrong place</td><td>Redo Step 3 and include the full lift height.</td></tr>
+        <tr><td>Never grasps; intervention rate stays high</td><td>Exploration too wild or box too big</td><td><code>temperature_init</code> 0.01, shrink the box, more demonstrations.</td></tr>
+        <tr><td>Gripper opens and closes constantly</td><td>No cost for switching</td><td>Set <code>gripper_penalty</code> to −0.02.</td></tr>
+        <tr><td>"Success" while the cube is on the table</td><td>Classifier false positive</td><td>Raise the threshold to 0.7–0.8, check the crop, record more failure frames.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="sources">
+  <div class="secnum">Sources and omissions</div>
+  <h2>Where this comes from</h2>
+  <ul class="tight col">
+    <li><a href="https://github.com/huggingface/lerobot/blob/45cca1a6ba368cf29cc8b4e0f49a1db875d15f61/docs/source/hilserl.mdx">docs/source/hilserl.mdx</a>: workflow, commands, example values (fps 10, 0.02 m steps, bounds, 128×128, threshold 0.7, temperature 0.01, intervention advice).</li>
+    <li><a href="https://github.com/huggingface/lerobot/blob/45cca1a6ba368cf29cc8b4e0f49a1db875d15f61/src/lerobot/rl/learner.py">rl/learner.py</a>: every transition to the online buffer, intervention transitions also to the offline buffer; learning starts after <code>online_step_before_learning</code>.</li>
+    <li><a href="https://github.com/huggingface/lerobot/blob/45cca1a6ba368cf29cc8b4e0f49a1db875d15f61/src/lerobot/rl/data_sources/data_mixer.py">rl/data_sources/data_mixer.py</a> and <a href="https://github.com/huggingface/lerobot/blob/45cca1a6ba368cf29cc8b4e0f49a1db875d15f61/src/lerobot/rl/train_rl.py">rl/train_rl.py</a>: 50/50 online/offline batches.</li>
+    <li><a href="https://github.com/huggingface/lerobot/blob/45cca1a6ba368cf29cc8b4e0f49a1db875d15f61/src/lerobot/rl/algorithms/sac/configuration_sac.py">sac/configuration_sac.py</a>, <a href="https://github.com/huggingface/lerobot/blob/45cca1a6ba368cf29cc8b4e0f49a1db875d15f61/src/lerobot/policies/gaussian_actor/configuration_gaussian_actor.py">gaussian_actor/configuration_gaussian_actor.py</a>: SAC and buffer defaults.</li>
+    <li><a href="https://github.com/huggingface/lerobot/blob/45cca1a6ba368cf29cc8b4e0f49a1db875d15f61/examples/tutorial/rl/hilserl_example.py">examples/tutorial/rl/hilserl_example.py</a>: a minimal, readable actor/learner script, good for students who want to see the loop in plain Python.</li>
+    <li><a href="https://github.com/huggingface/lerobot/blob/45cca1a6ba368cf29cc8b4e0f49a1db875d15f61/src/lerobot/rl/gym_manipulator.py">rl/gym_manipulator.py</a>, <a href="https://github.com/huggingface/lerobot/blob/45cca1a6ba368cf29cc8b4e0f49a1db875d15f61/src/lerobot/processor/hil_processor.py">processor/hil_processor.py</a>: reward 0 from the hardware, success, classifier and gripper-penalty steps.</li>
+    <li>Luo et al., <i>Precise and Dexterous Robotic Manipulation via Human-in-the-Loop Reinforcement Learning</i>, arXiv:2410.21845 (HIL-SERL).</li>
+  </ul>
+  <h4 style="margin-top:6px">Intentionally left out</h4>
+  <ul class="tight col">
+    <li><b>The full downloaded config files.</b> The example <code>env_config.json</code> / <code>train_config.json</code> are on the Hugging Face Hub and could not be fetched from here; the blocks above show only the keys for this task. Merge them into the downloaded files.</li>
+    <li><b>SAC mathematics</b> beyond the two target equations (entropy tuning, tanh-squashed Gaussian, UTD ratio).</li>
+    <li><b>Leader arm as the intervention device.</b> Appendix D and the guide mention it, but in the code checked only the gamepad and keyboard teleops report success / intervention events.</li>
+    <li><b>TOPReward, SARM, Robometer.</b> Appendix D lists TOPReward as a reward source. These models exist in LeRobot, but nothing in <code>lerobot/rl/</code> calls them, so they do not feed the real-arm training loop today.</li>
+    <li><b>Simulated HIL-SERL</b> (gym-hil, Franka in MuJoCo): useful practice before touching hardware, but not the SO101.</li>
+  </ul>
+</section>
+
+</div>
+
+</body></html>
