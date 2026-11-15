@@ -1,0 +1,917 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab: TD-MPC from Scratch</title>
+<style>
+  :root {
+    --bg: #fbfaf7; --panel: #ffffff; --ink: #1d1c1a; --muted: #5f5c55; --line: #dedad2;
+    --accent: #b4540a; --accent-soft: #fdf0e3; --ok: #2f7a3e; --ok-soft: #e8f4ea;
+    --warn: #9a5b00; --warn-soft: #fff4dc; --bad: #a3322a; --bad-soft: #fbe9e7;
+    --code-bg: #f3f1ec; --crop: #e0a100; --zone: #2f7a3e;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513; --panel: #1f1e1b; --ink: #ece9e2; --muted: #a8a399; --line: #38352f;
+      --accent: #f0954a; --accent-soft: #3a2817; --ok: #7cc48a; --ok-soft: #1d3322;
+      --warn: #f2bd5c; --warn-soft: #3a2e14; --bad: #f08a80; --bad-soft: #3d1f1c;
+      --code-bg: #262521; --crop: #f2bd5c; --zone: #7cc48a;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.6 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 1.4rem; margin: 48px 0 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+  h2 .num { display: inline-block; min-width: 2em; color: var(--accent); }
+  h3 { font-size: 1.08rem; margin: 26px 0 8px; }
+  p, li { max-width: 72ch; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  a { color: var(--accent); }
+  code { font-family: Consolas, "Cascadia Mono", ui-monospace, monospace; font-size: .9em;
+         background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+        padding: 14px 16px; overflow-x: auto; font-size: .86rem; line-height: 1.5; margin: 10px 0 16px; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .meta { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 8px; }
+  .chip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+          padding: 4px 12px; font-size: .88rem; color: var(--muted); }
+  .chip b { color: var(--ink); font-weight: 600; }
+  .table-wrap { overflow-x: auto; margin: 10px 0 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; background: var(--panel); }
+  th, td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 600; }
+  td.set { font-family: Consolas, ui-monospace, monospace; font-size: .88rem; white-space: nowrap; }
+  .note { border-left: 4px solid var(--accent); background: var(--accent-soft);
+          padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; }
+  .note.ok { border-color: var(--ok); background: var(--ok-soft); }
+  .note.warn { border-color: var(--warn); background: var(--warn-soft); }
+  .note.bad { border-color: var(--bad); background: var(--bad-soft); }
+  .note b:first-child { display: block; margin-bottom: 2px; }
+  ol.steps { padding-left: 1.3em; }
+  ol.steps > li { margin: 6px 0; }
+  .check { list-style: none; padding-left: 0; }
+  .check li::before { content: "☐  "; color: var(--accent); }
+  figure { margin: 16px 0 22px; background: var(--panel); border: 1px solid var(--line);
+           border-radius: 10px; padding: 14px; }
+  figure svg { display: block; width: 100%; height: auto; }
+  figcaption { color: var(--muted); font-size: .88rem; margin-top: 8px; }
+  .fig-scroll { overflow-x: auto; }
+  .fig-scroll svg { min-width: 640px; }
+  svg text { font-family: "Segoe UI", system-ui, sans-serif; fill: var(--ink); }
+  svg .muted { fill: var(--muted); }
+  svg .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+  svg .box-accent { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+  svg .arrow { stroke: var(--muted); stroke-width: 2; fill: none; }
+  svg .arrowhead { fill: var(--muted); }
+  nav.toc { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+            padding: 12px 18px; margin: 20px 0; }
+  nav.toc ol { margin: 6px 0; padding-left: 1.3em; columns: 2; column-gap: 32px; }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } h1 { font-size: 1.6rem; } }
+  .log-sheet td { height: 30px; }
+  .fig-scroll.wide svg { min-width: 780px; }
+  svg .box-ok { fill: var(--ok-soft); stroke: var(--ok); stroke-width: 2; }
+  svg .box-bad { fill: var(--panel); stroke: var(--bad); stroke-width: 2; }
+  svg .arm { stroke: var(--ink); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; fill: none; }
+  svg .arm-j { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+  svg .joint { fill: var(--panel); stroke: var(--ink); stroke-width: 2; }
+  svg .base { fill: var(--muted); }
+  svg .tbl { stroke: var(--muted); stroke-width: 2; }
+  svg .startmark { stroke: var(--muted); stroke-width: 3; }
+  svg .target { stroke: var(--zone); stroke-width: 5; }
+  svg .cube { fill: var(--accent); }
+  svg .ink { fill: var(--ink); }
+  kbd { font-family: Consolas, "Cascadia Mono", ui-monospace, monospace; font-size: .82em; background: var(--panel);
+        border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; white-space: nowrap; }
+  @media print { h2 { break-before: auto; } figure, pre, table { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Lab: train a TD-MPC policy from scratch</h1>
+<p class="sub">Record a task with MakerMods Lab, turn the recording into a TD-MPC dataset, and train the policy on your GPU.</p>
+
+<div class="meta">
+  <span class="chip"><b>Robot</b> SO-101 leader + follower</span>
+  <span class="chip"><b>Camera</b> 1 USB camera</span>
+  <span class="chip"><b>Computer</b> Windows + NVIDIA GPU</span>
+  <span class="chip"><b>Time</b> ~1 h recording, ~2 h training</span>
+</div>
+
+<nav class="toc" aria-label="Contents">
+  <b>Contents</b>
+  <ol>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#prereq">Prepare the computer</a></li>
+    <li><a href="#scene">Set up the scene and camera</a></li>
+    <li><a href="#robot">Set up the robot in the Lab</a></li>
+    <li><a href="#record">Record the dataset</a></li>
+    <li><a href="#convert">Convert for TD-MPC</a></li>
+    <li><a href="#train">Train in the Lab</a></li>
+    <li><a href="#check">Check the result</a></li>
+    <li><a href="#trouble">Troubleshooting</a></li>
+    <li><a href="#limits">Limitations</a></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="overview"><span class="num">1</span>Overview</h2>
+
+<p>TD-MPC learns a model of the world and the reward, then plans actions with it. lerobot's TD-MPC has three requirements that a normal Lab recording does not meet:</p>
+
+<div class="table-wrap"><table>
+  <tr><th>TD-MPC needs</th><th>A normal Lab recording has</th><th>How this lab solves it</th></tr>
+  <tr><td><b>One</b> camera</td><td>Usually two (front + wrist)</td><td>The conversion script keeps only <code>front</code></td></tr>
+  <tr><td><b>Square</b> images (84 × 84 is the design size)</td><td>640 × 480</td><td>The script center-crops to 480 × 480 and resizes to 84 × 84</td></tr>
+  <tr><td>A <b>reward</b> on every frame (<code>next.reward</code>)</td><td>No reward</td><td>You end every successful episode in a held success pose; the script gives those last frames reward 1.0</td></tr>
+</table></div>
+
+<p>The whole lab follows this pipeline. The recording itself is a normal Lab recording; only step 6 is TD-MPC-specific.</p>
+
+<figure>
+<div class="fig-scroll">
+<svg viewBox="0 0 860 170" role="img" aria-label="Pipeline: prepare, set up scene, record in the Lab, convert with the script, train TD-MPC in the Lab">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" class="arrowhead"/>
+    </marker>
+  </defs>
+  <g>
+    <rect x="10" y="30" width="140" height="80" rx="10" class="box"/>
+    <text x="80" y="62" text-anchor="middle" font-weight="600" font-size="15">Prepare</text>
+    <text x="80" y="84" text-anchor="middle" class="muted" font-size="12">GPU · Admin · patch</text>
+    <text x="80" y="140" text-anchor="middle" class="muted" font-size="12">Section 2</text>
+  </g>
+  <g>
+    <rect x="180" y="30" width="140" height="80" rx="10" class="box"/>
+    <text x="250" y="62" text-anchor="middle" font-weight="600" font-size="15">Scene + robot</text>
+    <text x="250" y="84" text-anchor="middle" class="muted" font-size="12">1 camera, centered</text>
+    <text x="250" y="140" text-anchor="middle" class="muted" font-size="12">Sections 3–4</text>
+  </g>
+  <g>
+    <rect x="350" y="30" width="140" height="80" rx="10" class="box"/>
+    <text x="420" y="62" text-anchor="middle" font-weight="600" font-size="15">Record</text>
+    <text x="420" y="84" text-anchor="middle" class="muted" font-size="12">Lab · 1 · Collect</text>
+    <text x="420" y="140" text-anchor="middle" class="muted" font-size="12">Section 5</text>
+  </g>
+  <g>
+    <rect x="520" y="30" width="150" height="80" rx="10" class="box-accent"/>
+    <text x="595" y="62" text-anchor="middle" font-weight="600" font-size="15">Convert</text>
+    <text x="595" y="84" text-anchor="middle" class="muted" font-size="12">84×84 · reward</text>
+    <text x="595" y="140" text-anchor="middle" class="muted" font-size="12">Section 6</text>
+  </g>
+  <g>
+    <rect x="700" y="30" width="150" height="80" rx="10" class="box"/>
+    <text x="775" y="62" text-anchor="middle" font-weight="600" font-size="15">Train TD-MPC</text>
+    <text x="775" y="84" text-anchor="middle" class="muted" font-size="12">Lab · 2 · Train</text>
+    <text x="775" y="140" text-anchor="middle" class="muted" font-size="12">Sections 7–8</text>
+  </g>
+  <line x1="150" y1="70" x2="176" y2="70" class="arrow" marker-end="url(#ah)"/>
+  <line x1="320" y1="70" x2="346" y2="70" class="arrow" marker-end="url(#ah)"/>
+  <line x1="490" y1="70" x2="516" y2="70" class="arrow" marker-end="url(#ah)"/>
+  <line x1="670" y1="70" x2="696" y2="70" class="arrow" marker-end="url(#ah)"/>
+</svg>
+</div>
+<figcaption>Figure 1. Lab pipeline. The highlighted step is the only one done outside the Lab's interface.</figcaption>
+</figure>
+
+<!-- ============================================================ -->
+<h2 id="prereq"><span class="num">2</span>Prepare the computer</h2>
+
+<p>Do these once. Each one fixes a failure you would otherwise hit partway through the lab.</p>
+
+<h3>2.1 Apply the Windows training update</h3>
+<p>Without it, a local training run fails on Windows. Follow <code>updatewin\README.md</code>, or from the repository root:</p>
+<pre><code>cd C:\makermodslab
+git apply updatewin\windows-training-fix.patch</code></pre>
+
+<h3>2.2 Install the GPU build of PyTorch</h3>
+<p>Close MakerMods Lab first, then:</p>
+<pre><code>uv pip install --python .venv\Scripts\python.exe torch==2.11.0 torchvision==0.26.0 `
+  --index-url https://download.pytorch.org/whl/cu126 `
+  --reinstall-package torch --reinstall-package torchvision
+
+.venv\Scripts\python.exe -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"</code></pre>
+<p>The check must print <code>True</code> and your GPU's name.</p>
+
+<h3>2.3 Allow checkpoint links: run the Lab as Administrator</h3>
+<p>When lerobot saves a checkpoint, it creates a <code>checkpoints\last</code> symbolic link. Windows only allows that for an Administrator, or with <b>Developer Mode</b> turned on. Without one of them, training crashes at the first checkpoint with <code>OSError: [WinError 1314] A required privilege is not held by the client</code>.</p>
+<p>Do <b>one</b> of these:</p>
+<ul>
+  <li><b>Option A (recommended):</b> Settings → System → For developers → turn on <b>Developer Mode</b>. This works for every terminal.</li>
+  <li><b>Option B:</b> Start the Lab from a terminal opened with <b>Run as administrator</b>.</li>
+</ul>
+
+<h3>2.4 Start MakerMods Lab</h3>
+<pre><code>cd C:\makermodslab
+.venv\Scripts\activate
+makermodslab</code></pre>
+<p>Open <code>http://localhost:8000</code>. Log in to Hugging Face if you want datasets named after your account; it is optional for this lab.</p>
+
+<div class="note ok"><b>Checkpoint</b>The Lab opens, and <code>torch.cuda.is_available()</code> printed <code>True</code>.</div>
+
+<!-- ============================================================ -->
+<h2 id="scene"><span class="num">3</span>Set up the scene and camera</h2>
+
+<h3>3.1 Choose a simple task</h3>
+<p>TD-MPC learns best from a short, repeatable task with a clear finished state. This lab uses:</p>
+<p class="note"><b>Task</b>“Pick up the cube and place it in the target square.” Done means: the cube is inside the square, and the gripper is open and raised above it.</p>
+<p>Mark the target square with tape. Use the same cube, table surface and lighting for every episode.</p>
+
+<h3>3.2 Place the front camera</h3>
+<p>The conversion keeps only the <b>center square</b> of the camera image and throws away 80 pixels on the left and right. Anything outside that square is invisible to TD-MPC.</p>
+
+<figure>
+<div class="fig-scroll">
+<svg viewBox="0 0 860 360" role="img" aria-label="Top view of the workspace: the camera in front of the table looks at the robot; the cube start area and target square sit inside the centre square of the camera view, while the operator stands outside it">
+  <defs>
+    <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" class="arrowhead"/>
+    </marker>
+  </defs>
+  <!-- Left: top view -->
+  <text x="20" y="24" font-weight="600" font-size="14">Top view of the table</text>
+  <rect x="20" y="40" width="400" height="230" rx="6" class="box"/>
+  <!-- camera FOV -->
+  <path d="M220,330 L40,40 L400,40 Z" fill="var(--crop)" opacity=".10"/>
+  <path d="M220,330 L130,40 L310,40 Z" fill="var(--zone)" opacity=".16"/>
+  <line x1="220" y1="330" x2="130" y2="40" stroke="var(--zone)" stroke-dasharray="5 4" stroke-width="1.5"/>
+  <line x1="220" y1="330" x2="310" y2="40" stroke="var(--zone)" stroke-dasharray="5 4" stroke-width="1.5"/>
+  <!-- robot -->
+  <circle cx="220" cy="80" r="22" fill="var(--panel)" stroke="var(--ink)" stroke-width="2"/>
+  <text x="220" y="85" text-anchor="middle" font-size="12" font-weight="600">Arm</text>
+  <!-- cube start -->
+  <rect x="160" y="150" width="26" height="26" fill="var(--accent)" rx="3"/>
+  <text x="173" y="196" text-anchor="middle" font-size="11" class="muted">cube start</text>
+  <!-- target -->
+  <rect x="244" y="140" width="46" height="46" fill="none" stroke="var(--zone)" stroke-width="2.5" stroke-dasharray="6 3"/>
+  <text x="267" y="204" text-anchor="middle" font-size="11" class="muted">target square</text>
+  <!-- camera -->
+  <rect x="198" y="318" width="44" height="26" rx="5" fill="var(--ink)"/>
+  <circle cx="220" cy="331" r="7" fill="var(--panel)"/>
+  <text x="260" y="336" font-size="12">front camera</text>
+  <!-- operator -->
+  <circle cx="455" cy="150" r="16" fill="none" stroke="var(--bad)" stroke-width="2"/>
+  <text x="455" y="185" text-anchor="middle" font-size="11" fill="var(--bad)">operator +</text>
+  <text x="455" y="199" text-anchor="middle" font-size="11" fill="var(--bad)">leader arm</text>
+  <text x="455" y="213" text-anchor="middle" font-size="11" fill="var(--bad)">out of view</text>
+
+  <!-- Right: camera image -->
+  <text x="520" y="24" font-weight="600" font-size="14">What the camera records (640 × 480)</text>
+  <rect x="520" y="40" width="320" height="240" fill="var(--crop)" opacity=".14" stroke="var(--line)"/>
+  <rect x="560" y="40" width="240" height="240" fill="var(--zone)" opacity=".14" stroke="var(--zone)" stroke-width="2.5"/>
+  <text x="540" y="165" text-anchor="middle" font-size="11" class="muted" transform="rotate(-90 540 165)">cropped away</text>
+  <text x="820" y="165" text-anchor="middle" font-size="11" class="muted" transform="rotate(90 820 165)">cropped away</text>
+  <text x="680" y="60" text-anchor="middle" font-size="12" font-weight="600">kept: centre 480 × 480</text>
+  <circle cx="680" cy="110" r="16" fill="var(--panel)" stroke="var(--ink)" stroke-width="2"/>
+  <text x="680" y="115" text-anchor="middle" font-size="10" font-weight="600">Arm</text>
+  <rect x="628" y="196" width="22" height="22" fill="var(--accent)" rx="3"/>
+  <rect x="694" y="186" width="40" height="40" fill="none" stroke="var(--zone)" stroke-width="2.5" stroke-dasharray="6 3"/>
+  <text x="680" y="304" text-anchor="middle" font-size="12" class="muted">Keep arm, cube and target inside the green square</text>
+</svg>
+</div>
+<figcaption>Figure 2. Camera placement. Left: the camera faces the arm across the table, with the task in the middle of its view. Right: the green square is the part the conversion keeps.</figcaption>
+</figure>
+
+<ul class="check">
+  <li>Fix the camera to the table or a stand; it must not move between episodes.</li>
+  <li>Center the arm and the task area horizontally in the camera image.</li>
+  <li>Keep the operator, the leader arm and your hands <b>outside</b> the center square.</li>
+  <li>Use a plain background, steady light and no window glare.</li>
+  <li>Leave the camera at its native 640 × 480. Most USB cameras refuse a square resolution, so the script crops instead.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="robot"><span class="num">4</span>Set up the robot in the Lab</h2>
+
+<ol class="steps">
+  <li>Use the robot menu in the top-right corner → <b>Robot settings</b> → create a robot (SO-101, single arm).</li>
+  <li>Detect the <b>leader</b> and <b>follower</b> ports and calibrate both arms, as the Lab guides you.</li>
+  <li>In the robot's camera section, add one camera:
+    <div class="table-wrap"><table>
+      <tr><th>Field</th><th>Value</th><th>Why</th></tr>
+      <tr><td>Name</td><td class="set">front</td><td>The script looks for <code>observation.images.front</code></td></tr>
+      <tr><td>Resolution</td><td class="set">640 × 480</td><td>Supported by almost every USB camera</td></tr>
+      <tr><td>FPS</td><td class="set">30</td><td>The reward window below assumes 30 fps</td></tr>
+    </table></div>
+    A second camera (for example <code>wrist</code>) is allowed. The script ignores it, and it keeps the same recording usable for ACT or SmolVLA later.
+  </li>
+  <li>Run a short <b>teleoperation</b> to check that the follower copies the leader smoothly and the camera preview shows the scene from Figure 2.</li>
+</ol>
+
+<div class="note ok"><b>Checkpoint</b>The robot shows as ready, teleoperation works, and the camera preview has the task centered.</div>
+
+<!-- ============================================================ -->
+<h2 id="record"><span class="num">5</span>Record the dataset</h2>
+
+<p>This is the most important part of the lab. TD-MPC learns its reward from <b>how each episode ends</b>, so you will record two kinds of episode on purpose, and end both of them the same way:</p>
+<ul>
+  <li><b>Success episodes (about 50):</b> the cube ends inside the square, and you hold still for 2 seconds at the end.</li>
+  <li><b>Failure episodes (10, planned in advance):</b> the cube ends outside the square, and you hold still for 2 seconds at the end too.</li>
+</ul>
+<p>Practise the success motion a few times in teleoperation (step 4) until you can do it smoothly in about 12 seconds.</p>
+
+<h3>5.1 Recording settings</h3>
+<p>On the home page choose <b>＋ New Policy</b> → <b>1 · Collect</b>, select your robot, and enter:</p>
+
+<div class="table-wrap"><table>
+  <tr><th>Setting</th><th>Value</th><th>Why</th></tr>
+  <tr><td>Dataset name</td><td class="set">tdmpc_pick_raw</td><td>Note the full id shown under “Will be saved as”, e.g. <code>&lt;your_hf_user&gt;/tdmpc_pick_raw</code>; you need it in step 6</td></tr>
+  <tr><td>Task description</td><td class="set">Pick up the cube and place it in the target square</td><td>Same sentence for every episode, including the failures</td></tr>
+  <tr><td>Number of episodes</td><td class="set">60</td><td>50 successes plus the 10 planned failures from 5.4</td></tr>
+  <tr><td>Episode duration (s)</td><td class="set">20</td><td>Enough for the task plus the held finish; end it yourself with <b>Done</b></td></tr>
+  <tr><td>Reset duration (s)</td><td class="set">10</td><td>Time to put the cube back and bring the arm home</td></tr>
+  <tr><td>Streaming video encoding</td><td class="set">On</td><td>Each episode saves almost instantly</td></tr>
+  <tr><td>Push to Hugging Face Hub</td><td class="set">Off</td><td>Optional; the lab works fully offline</td></tr>
+</table></div>
+
+<h3>5.2 The episode cycle and its controls</h3>
+<p>After you press start, the session repeats the same two phases for every episode: an orange <b>Reset</b> phase (nothing is recorded) and a <b>Recording</b> phase. The follower copies the leader arm in both phases.</p>
+
+<figure>
+<div class="fig-scroll wide">
+<svg viewBox="0 0 860 168" role="img" aria-label="One episode cycle. Reset phase, up to 10 seconds: put the cube on its start mark and bring the arm home with the leader; Space starts the next episode early and Enter pauses the countdown. Recording phase, up to 20 seconds: home, reach, grasp, carry, place, then hold still 2 seconds; Delete re-records. Press Space for Done to save the episode and go to the next reset.">
+  <defs>
+    <marker id="ah5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" class="arrowhead"/>
+    </marker>
+  </defs>
+  <rect x="20" y="40" width="220" height="70" rx="10" class="box-accent"/>
+  <text x="130" y="61" text-anchor="middle" font-size="13" font-weight="700">RESET &#183; up to 10 s</text>
+  <text x="130" y="82" text-anchor="middle" font-size="11">Put the cube on its start mark</text>
+  <text x="130" y="98" text-anchor="middle" font-size="11">Bring the arm home with the leader</text>
+  <text x="20" y="134" font-size="11" class="muted"><tspan font-family="Consolas, monospace" font-weight="700" class="ink">SPACE</tspan> = Start Next Episode now</text>
+  <text x="20" y="151" font-size="11" class="muted"><tspan font-family="Consolas, monospace" font-weight="700" class="ink">ENTER</tspan> = pause the countdown</text>
+
+  <line x1="242" y1="75" x2="276" y2="75" class="arrow" marker-end="url(#ah5)"/>
+
+  <rect x="280" y="40" width="470" height="70" rx="10" fill="var(--ok-soft)" stroke="var(--ok)" stroke-width="1.5"/>
+  <text x="515" y="58" text-anchor="middle" font-size="13" font-weight="700">RECORDING &#183; up to 20 s</text>
+  <rect x="290" y="68" width="50" height="32" fill="var(--panel)" stroke="var(--line)"/>
+  <text x="315" y="88" text-anchor="middle" font-size="11">Home</text>
+  <rect x="340" y="68" width="75" height="32" fill="var(--panel)" stroke="var(--line)"/>
+  <text x="377" y="88" text-anchor="middle" font-size="11">Reach</text>
+  <rect x="415" y="68" width="65" height="32" fill="var(--panel)" stroke="var(--line)"/>
+  <text x="447" y="88" text-anchor="middle" font-size="11">Grasp</text>
+  <rect x="480" y="68" width="85" height="32" fill="var(--panel)" stroke="var(--line)"/>
+  <text x="522" y="88" text-anchor="middle" font-size="11">Lift &amp; carry</text>
+  <rect x="565" y="68" width="85" height="32" fill="var(--panel)" stroke="var(--line)"/>
+  <text x="607" y="88" text-anchor="middle" font-size="11">Place &amp; open</text>
+  <rect x="650" y="68" width="90" height="32" fill="var(--ok)" opacity=".85"/>
+  <text x="695" y="88" text-anchor="middle" font-size="11" font-weight="700" fill="var(--panel)">HOLD 2 s</text>
+  <text x="280" y="134" font-size="11" class="muted"><tspan font-family="Consolas, monospace" font-weight="700" class="ink">DEL</tspan> = Re-record: throw this take away, same episode number (only in this phase)</text>
+  <text x="280" y="151" font-size="11" class="muted">At 20 s the episode ends by itself and is <tspan font-weight="700" class="ink">saved</tspan>, finished or not</text>
+
+  <line x1="750" y1="30" x2="750" y2="118" stroke="var(--ok)" stroke-width="3"/>
+  <text x="750" y="22" text-anchor="middle" font-size="12" font-weight="700">Done (SPACE)</text>
+  <text x="760" y="80" font-size="11">saved &#8594;</text>
+  <text x="760" y="96" font-size="11">next RESET</text>
+</svg>
+</div>
+<figcaption>Figure 3. One episode cycle. Only the Recording phase is saved to the dataset. Your hands may be in view during Reset, but never during Recording.</figcaption>
+</figure>
+
+<div class="table-wrap"><table>
+  <tr><th>Button</th><th>Key</th><th>When</th><th>What it does</th></tr>
+  <tr><td><b>Done</b></td><td><kbd>Space</kbd> or <kbd>→</kbd></td><td>Recording</td><td>Ends and <b>saves</b> the episode. Press it only after the 2-second hold.</td></tr>
+  <tr><td><b>Re-record</b></td><td><kbd>Del</kbd></td><td>Recording only</td><td>Throws the current take away. After a reset, the same episode number is recorded again. It does <b>not</b> work after you have pressed Done.</td></tr>
+  <tr><td><b>Start Next Episode</b></td><td><kbd>Space</kbd></td><td>Reset</td><td>Skips the rest of the reset countdown once the cube and the arm are back in place.</td></tr>
+  <tr><td><b>Pause</b> / <b>Resume</b></td><td><kbd>Enter</kbd></td><td>Reset (or armed during Recording)</td><td>Freezes the reset countdown, for example when the cube has rolled away. Pressed during Recording, it takes effect at the next reset.</td></tr>
+  <tr><td><b>Finish session</b></td><td><kbd>Esc</kbd></td><td>Any time</td><td>Ends the session and keeps every saved episode (see 5.7).</td></tr>
+</table></div>
+
+<h3>5.3 A success episode, step by step</h3>
+<p>Do every success episode the same way, in one smooth attempt, with these six steps:</p>
+
+<figure>
+<div class="fig-scroll wide">
+<svg viewBox="0 0 860 688" role="img" aria-label="Six side-view panels of one successful episode: 1 home pose, 2 reach above the cube with the gripper open, 3 lower and close on the cube, 4 lift and carry to the square, 5 set the cube down and open the gripper, 6 raise the open gripper about 5 cm and hold still for 2 seconds, then press Done. Only the held last second gets reward 1.0.">
+  <defs><marker id="ah6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
+  <g transform="translate(22,8)">
+  <g transform="scale(1.75)">
+  <rect x="0" y="0" width="135" height="150" rx="8" class="box"/>
+  <line x1="6" y1="120" x2="129" y2="120" class="tbl"/>
+  <line x1="61" y1="124" x2="75" y2="124" class="startmark"/>
+  <line x1="85" y1="122" x2="111" y2="122" class="target"/>
+  <text x="68" y="138" text-anchor="middle" font-size="9" class="muted">start</text>
+  <text x="98" y="138" text-anchor="middle" font-size="9" fill="var(--zone)">square</text>
+  <rect x="15" y="104" width="20" height="16" rx="2" class="base"/>
+  <polyline points="25,104 28,60 52,66" class="arm"/>
+  <line x1="52" y1="66" x2="52" y2="74" class="arm-j"/>
+  <line x1="45" y1="74" x2="45" y2="92" class="arm-j"/>
+  <line x1="59" y1="74" x2="59" y2="92" class="arm-j"/>
+  <line x1="45" y1="74" x2="59" y2="74" class="arm-j"/>
+  <circle cx="25" cy="104" r="4" class="joint"/>
+  <circle cx="28" cy="60" r="4" class="joint"/>
+  <rect x="62" y="108" width="12" height="12" rx="2" class="cube"/>
+  </g>
+  <circle cx="24" cy="24" r="13" fill="var(--accent)"/><text x="24" y="29.5" text-anchor="middle" font-size="15" font-weight="700" fill="var(--panel)">1</text><text x="45" y="29.5" font-size="15" font-weight="600">Home</text>
+  <text x="118.125" y="284" text-anchor="middle" font-size="14">Start pose, stay still</text>
+  <text x="118.125" y="303" text-anchor="middle" font-size="13" class="muted">~1 s</text>
+  <rect x="56.125" y="312" width="124" height="22" rx="11" fill="var(--code-bg)" stroke="var(--line)"/>
+  <text x="118.125" y="327.5" text-anchor="middle" font-size="12" class="muted">reward 0.0</text>
+  </g>
+  <g transform="translate(302,8)">
+  <g transform="scale(1.75)">
+  <rect x="0" y="0" width="135" height="150" rx="8" class="box"/>
+  <line x1="6" y1="120" x2="129" y2="120" class="tbl"/>
+  <line x1="61" y1="124" x2="75" y2="124" class="startmark"/>
+  <line x1="85" y1="122" x2="111" y2="122" class="target"/>
+  <rect x="15" y="104" width="20" height="16" rx="2" class="base"/>
+  <polyline points="25,104 28,59 68,80" class="arm"/>
+  <line x1="68" y1="80" x2="68" y2="88" class="arm-j"/>
+  <line x1="64" y1="88" x2="58" y2="106" class="arm-j"/>
+  <line x1="72" y1="88" x2="78" y2="106" class="arm-j"/>
+  <circle cx="25" cy="104" r="4" class="joint"/>
+  <circle cx="28" cy="59" r="4" class="joint"/>
+  <rect x="62" y="108" width="12" height="12" rx="2" class="cube"/>
+  </g>
+  <circle cx="24" cy="24" r="13" fill="var(--accent)"/><text x="24" y="29.5" text-anchor="middle" font-size="15" font-weight="700" fill="var(--panel)">2</text><text x="45" y="29.5" font-size="15" font-weight="600">Reach</text>
+  <text x="118.125" y="284" text-anchor="middle" font-size="14">Open, move over cube</text>
+  <text x="118.125" y="303" text-anchor="middle" font-size="13" class="muted">~3 s</text>
+  <rect x="56.125" y="312" width="124" height="22" rx="11" fill="var(--code-bg)" stroke="var(--line)"/>
+  <text x="118.125" y="327.5" text-anchor="middle" font-size="12" class="muted">reward 0.0</text>
+  </g>
+  <g transform="translate(582,8)">
+  <g transform="scale(1.75)">
+  <rect x="0" y="0" width="135" height="150" rx="8" class="box"/>
+  <line x1="6" y1="120" x2="129" y2="120" class="tbl"/>
+  <line x1="61" y1="124" x2="75" y2="124" class="startmark"/>
+  <line x1="85" y1="122" x2="111" y2="122" class="target"/>
+  <rect x="15" y="104" width="20" height="16" rx="2" class="base"/>
+  <polyline points="25,104 33,60 68,88" class="arm"/>
+  <line x1="68" y1="88" x2="68" y2="96" class="arm-j"/>
+  <line x1="61" y1="96" x2="61" y2="114" class="arm-j"/>
+  <line x1="75" y1="96" x2="75" y2="114" class="arm-j"/>
+  <line x1="61" y1="96" x2="75" y2="96" class="arm-j"/>
+  <circle cx="25" cy="104" r="4" class="joint"/>
+  <circle cx="33" cy="60" r="4" class="joint"/>
+  <rect x="62" y="108" width="12" height="12" rx="2" class="cube"/>
+  </g>
+  <circle cx="24" cy="24" r="13" fill="var(--accent)"/><text x="24" y="29.5" text-anchor="middle" font-size="15" font-weight="700" fill="var(--panel)">3</text><text x="45" y="29.5" font-size="15" font-weight="600">Grasp</text>
+  <text x="118.125" y="284" text-anchor="middle" font-size="14">Lower, close on cube</text>
+  <text x="118.125" y="303" text-anchor="middle" font-size="13" class="muted">~2 s</text>
+  <rect x="56.125" y="312" width="124" height="22" rx="11" fill="var(--code-bg)" stroke="var(--line)"/>
+  <text x="118.125" y="327.5" text-anchor="middle" font-size="12" class="muted">reward 0.0</text>
+  </g>
+  <g transform="translate(22,353)">
+  <g transform="scale(1.75)">
+  <rect x="0" y="0" width="135" height="150" rx="8" class="box"/>
+  <line x1="6" y1="120" x2="129" y2="120" class="tbl"/>
+  <line x1="61" y1="124" x2="75" y2="124" class="startmark"/>
+  <line x1="85" y1="122" x2="111" y2="122" class="target"/>
+  <rect x="15" y="104" width="20" height="16" rx="2" class="base"/>
+  <polyline points="25,104 45,64 90,58" class="arm"/>
+  <line x1="90" y1="58" x2="90" y2="66" class="arm-j"/>
+  <line x1="83" y1="66" x2="83" y2="84" class="arm-j"/>
+  <line x1="97" y1="66" x2="97" y2="84" class="arm-j"/>
+  <line x1="83" y1="66" x2="97" y2="66" class="arm-j"/>
+  <circle cx="25" cy="104" r="4" class="joint"/>
+  <circle cx="45" cy="64" r="4" class="joint"/>
+  <rect x="84" y="68" width="12" height="12" rx="2" class="cube"/>
+  </g>
+  <circle cx="24" cy="24" r="13" fill="var(--accent)"/><text x="24" y="29.5" text-anchor="middle" font-size="15" font-weight="700" fill="var(--panel)">4</text><text x="45" y="29.5" font-size="15" font-weight="600">Lift &amp; carry</text>
+  <text x="118.125" y="284" text-anchor="middle" font-size="14">Lift, move to square</text>
+  <text x="118.125" y="303" text-anchor="middle" font-size="13" class="muted">~3 s</text>
+  <rect x="56.125" y="312" width="124" height="22" rx="11" fill="var(--code-bg)" stroke="var(--line)"/>
+  <text x="118.125" y="327.5" text-anchor="middle" font-size="12" class="muted">reward 0.0</text>
+  </g>
+  <g transform="translate(302,353)">
+  <g transform="scale(1.75)">
+  <rect x="0" y="0" width="135" height="150" rx="8" class="box"/>
+  <line x1="6" y1="120" x2="129" y2="120" class="tbl"/>
+  <line x1="61" y1="124" x2="75" y2="124" class="startmark"/>
+  <line x1="85" y1="122" x2="111" y2="122" class="target"/>
+  <rect x="15" y="104" width="20" height="16" rx="2" class="base"/>
+  <polyline points="25,104 56,71 98,86" class="arm"/>
+  <line x1="98" y1="86" x2="98" y2="94" class="arm-j"/>
+  <line x1="94" y1="94" x2="88" y2="112" class="arm-j"/>
+  <line x1="102" y1="94" x2="108" y2="112" class="arm-j"/>
+  <circle cx="25" cy="104" r="4" class="joint"/>
+  <circle cx="56" cy="71" r="4" class="joint"/>
+  <rect x="92" y="108" width="12" height="12" rx="2" class="cube"/>
+  </g>
+  <circle cx="24" cy="24" r="13" fill="var(--accent)"/><text x="24" y="29.5" text-anchor="middle" font-size="15" font-weight="700" fill="var(--panel)">5</text><text x="45" y="29.5" font-size="15" font-weight="600">Place &amp; open</text>
+  <text x="118.125" y="284" text-anchor="middle" font-size="14">Set down, open fully</text>
+  <text x="118.125" y="303" text-anchor="middle" font-size="13" class="muted">~2 s</text>
+  <rect x="56.125" y="312" width="124" height="22" rx="11" fill="var(--code-bg)" stroke="var(--line)"/>
+  <text x="118.125" y="327.5" text-anchor="middle" font-size="12" class="muted">reward 0.0</text>
+  </g>
+  <g transform="translate(582,353)">
+  <g transform="scale(1.75)">
+  <rect x="0" y="0" width="135" height="150" rx="8" class="box-ok"/>
+  <line x1="6" y1="120" x2="129" y2="120" class="tbl"/>
+  <line x1="61" y1="124" x2="75" y2="124" class="startmark"/>
+  <line x1="85" y1="122" x2="111" y2="122" class="target"/>
+  <rect x="15" y="104" width="20" height="16" rx="2" class="base"/>
+  <polyline points="25,104 57,72 98,54" class="arm"/>
+  <line x1="98" y1="54" x2="98" y2="62" class="arm-j"/>
+  <line x1="94" y1="62" x2="88" y2="80" class="arm-j"/>
+  <line x1="102" y1="62" x2="108" y2="80" class="arm-j"/>
+  <circle cx="25" cy="104" r="4" class="joint"/>
+  <circle cx="57" cy="72" r="4" class="joint"/>
+  <rect x="92" y="108" width="12" height="12" rx="2" class="cube"/>
+  <rect x="8" y="34" width="56" height="18" rx="9" fill="var(--ok)"/><text x="36" y="47" text-anchor="middle" font-size="10" font-weight="700" fill="var(--panel)">HOLD 2 s</text>
+  </g>
+  <circle cx="24" cy="24" r="13" fill="var(--accent)"/><text x="24" y="29.5" text-anchor="middle" font-size="15" font-weight="700" fill="var(--panel)">6</text><text x="45" y="29.5" font-size="15" font-weight="600">Raise &amp; hold</text>
+  <text x="118.125" y="284" text-anchor="middle" font-size="14">Up ~5 cm, freeze</text>
+  <text x="118.125" y="303" text-anchor="middle" font-size="13" font-weight="600" fill="var(--ok)">2 s, then press Done</text>
+  <rect x="56.125" y="312" width="124" height="22" rx="11" fill="var(--ok)"/>
+  <text x="118.125" y="327.5" text-anchor="middle" font-size="12" font-weight="700" fill="var(--panel)">reward 1.0</text>
+  </g>
+  <line x1="264.25" y1="139" x2="288.25" y2="139" class="arrow" marker-end="url(#ah6)"/>
+  <line x1="544.25" y1="139" x2="568.25" y2="139" class="arrow" marker-end="url(#ah6)"/>
+  <line x1="264.25" y1="484" x2="288.25" y2="484" class="arrow" marker-end="url(#ah6)"/>
+  <line x1="544.25" y1="484" x2="568.25" y2="484" class="arrow" marker-end="url(#ah6)"/>
+</svg>
+</div>
+<figcaption>Figure 4. A success episode seen from the side. The green panel is the finish that earns the reward: cube in the square, gripper open and raised, nothing moving.</figcaption>
+</figure>
+
+<div class="table-wrap"><table>
+  <tr><th>Step</th><th>What you do with the leader arm</th><th>Check</th></tr>
+  <tr><td><b>1 Home</b></td><td>The episode starts with the arm in your home pose (the same pose every time, set during Reset) and the cube on its start mark. Stay still for about 1 second.</td><td>Cube on its mark; hands out of the camera's center square</td></tr>
+  <tr><td><b>2 Reach</b></td><td>Open the gripper and move it straight to about 5 cm above the cube, in one movement. Don't search back and forth.</td><td>Gripper centered over the cube</td></tr>
+  <tr><td><b>3 Grasp</b></td><td>Lower until the jaws are on both sides of the cube, then close the gripper firmly. Pause for half a second.</td><td>Cube held, not pushed sideways</td></tr>
+  <tr><td><b>4 Lift &amp; carry</b></td><td>Lift about 5 cm and move straight to above the center of the square. Don't drag the cube along the table.</td><td>Cube still in the gripper</td></tr>
+  <tr><td><b>5 Place &amp; open</b></td><td>Lower until the cube touches the table inside the square, then open the gripper fully.</td><td>Cube entirely inside the tape</td></tr>
+  <tr><td><b>6 Raise &amp; hold</b></td><td>Raise the open gripper about 5 cm straight up, then <b>freeze</b>. Count “one-thousand-one, one-thousand-two”, then press <b>Done</b> (<kbd>Space</kbd>).</td><td>Nothing moves for 2 seconds</td></tr>
+</table></div>
+
+<div class="note ok"><b>It counts as a success only if all of these are true when you press Done</b>
+The cube is entirely inside the tape · the gripper is open and not touching the cube · the arm is raised · nothing has moved for 2 seconds · no hand is in the camera's center square.</div>
+
+<div class="note"><b>Press Done without moving the arm</b>Keep holding the leader arm with your working hand and press <kbd>Space</kbd> with the other hand, or have a partner press it. If you let go of the leader arm it can sag, and the follower would copy that movement into the frames that get the reward.</div>
+
+<div class="note warn"><b>Watch the timer</b>Aim to be holding the finish by about 15 seconds. If the timer passes about 17 seconds and you are not holding the finish yet, press <b>Re-record</b> (<kbd>Del</kbd>). At 20 seconds the episode is saved automatically, and a success episode without a held finish teaches TD-MPC the wrong thing.</div>
+
+<p>Why the hold matters: the conversion script (step 6) gives reward 1.0 to the <b>last 30 frames</b> (1 second) of every success episode and 0.0 to every other frame. Holding for 2 seconds makes sure that last second shows only the finished, still scene, even if you are a little slow to press Done.</p>
+
+<figure>
+<div class="fig-scroll">
+<svg viewBox="0 0 860 250" role="img" aria-label="Reward timeline: in a successful episode the last 30 frames (the held success pose) get reward 1 and all other frames reward 0; in a failed episode every frame gets reward 0">
+  <text x="20" y="24" font-weight="600" font-size="14">How the script assigns <tspan font-family="Consolas, monospace">next.reward</tspan> (with --success-frames 30)</text>
+
+  <text x="20" y="70" font-size="13" font-weight="600">Successful episode</text>
+  <rect x="200" y="52" width="520" height="28" fill="var(--code-bg)" stroke="var(--line)"/>
+  <rect x="720" y="52" width="120" height="28" fill="var(--ok)" opacity=".85"/>
+  <text x="460" y="71" text-anchor="middle" font-size="12" class="muted">reach · grasp · move · place → reward 0.0</text>
+  <text x="780" y="71" text-anchor="middle" font-size="12" font-weight="600" fill="var(--panel)">1.0</text>
+  <text x="780" y="100" text-anchor="middle" font-size="11" class="muted">last 30 frames = 1 s</text>
+  <text x="780" y="114" text-anchor="middle" font-size="11" class="muted">held success pose</text>
+
+  <text x="20" y="160" font-size="13" font-weight="600">Failed episode</text>
+  <text x="20" y="177" font-size="11" class="muted">(listed in --failed-episodes)</text>
+  <rect x="200" y="142" width="640" height="28" fill="var(--code-bg)" stroke="var(--line)"/>
+  <text x="520" y="161" text-anchor="middle" font-size="12" class="muted">every frame → reward 0.0</text>
+
+  <line x1="200" y1="205" x2="840" y2="205" class="arrow" marker-end="url(#ah3)"/>
+  <defs>
+    <marker id="ah3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" class="arrowhead"/>
+    </marker>
+  </defs>
+  <text x="200" y="228" font-size="11" class="muted">frame 0 (start)</text>
+  <text x="840" y="228" text-anchor="end" font-size="11" class="muted">last frame (you press Done)</text>
+</svg>
+</div>
+<figcaption>Figure 5. Reward design. The script only knows which episodes failed because you list them (5.6); it cannot see the cube.</figcaption>
+</figure>
+
+<h3>5.4 Failure episodes</h3>
+<p>Failure episodes show TD-MPC what “not done” looks like. Without them, every episode in the dataset ends with reward 1.0, and the model learns that the reward comes at the end of the episode, not from where the cube is.</p>
+<p>Perform a failure exactly like a success, with the same smooth motion, the same raise and the same 2-second hold, except for <b>one</b> deliberate mistake. The cube's position at the end should be the only difference between a success and a failure:</p>
+
+<figure>
+<div class="fig-scroll wide">
+<svg viewBox="0 0 836 252" role="img" aria-label="End poses compared. All four episodes end with the gripper open, raised, and held still for 2 seconds. Success: the cube is inside the square. A Short: the cube was set down before the square. B Overshoot: the cube was dropped past the square. C Missed grasp: the cube never left its start mark.">
+  <g transform="translate(15,8)">
+  <g transform="scale(1.3)">
+  <rect x="0" y="0" width="135" height="150" rx="8" class="box-ok"/>
+  <line x1="6" y1="120" x2="129" y2="120" class="tbl"/>
+  <line x1="61" y1="124" x2="75" y2="124" class="startmark"/>
+  <line x1="85" y1="122" x2="111" y2="122" class="target"/>
+  <rect x="15" y="104" width="20" height="16" rx="2" class="base"/>
+  <polyline points="25,104 57,72 98,54" class="arm"/>
+  <line x1="98" y1="54" x2="98" y2="62" class="arm-j"/>
+  <line x1="94" y1="62" x2="88" y2="80" class="arm-j"/>
+  <line x1="102" y1="62" x2="108" y2="80" class="arm-j"/>
+  <circle cx="25" cy="104" r="4" class="joint"/>
+  <circle cx="57" cy="72" r="4" class="joint"/>
+  <rect x="92" y="108" width="12" height="12" rx="2" class="cube"/>
+  <rect x="8" y="34" width="56" height="18" rx="9" fill="var(--ok)"/><text x="36" y="47" text-anchor="middle" font-size="10" font-weight="700" fill="var(--panel)">HOLD 2 s</text>
+  </g>
+  <circle cx="22" cy="22" r="12" fill="var(--ok)"/><text x="22" y="27" text-anchor="middle" font-size="14" font-weight="700" fill="var(--panel)">&#10003;</text><text x="41" y="27" font-size="14" font-weight="600">Success</text>
+  <text x="88" y="218" text-anchor="middle" font-size="12">cube inside the square</text>
+  <text x="88" y="236" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ok)">reward 1.0 on last 1 s</text>
+  </g>
+  <g transform="translate(225,8)">
+  <g transform="scale(1.3)">
+  <rect x="0" y="0" width="135" height="150" rx="8" class="box-bad"/>
+  <line x1="6" y1="120" x2="129" y2="120" class="tbl"/>
+  <line x1="61" y1="124" x2="75" y2="124" class="startmark"/>
+  <line x1="85" y1="122" x2="111" y2="122" class="target"/>
+  <rect x="15" y="104" width="20" height="16" rx="2" class="base"/>
+  <polyline points="25,104 21,59 66,54" class="arm"/>
+  <line x1="66" y1="54" x2="66" y2="62" class="arm-j"/>
+  <line x1="62" y1="62" x2="56" y2="80" class="arm-j"/>
+  <line x1="70" y1="62" x2="76" y2="80" class="arm-j"/>
+  <circle cx="25" cy="104" r="4" class="joint"/>
+  <circle cx="21" cy="59" r="4" class="joint"/>
+  <rect x="60" y="108" width="12" height="12" rx="2" class="cube"/>
+  <rect x="8" y="34" width="56" height="18" rx="9" fill="var(--muted)"/><text x="36" y="47" text-anchor="middle" font-size="10" font-weight="700" fill="var(--panel)">HOLD 2 s</text>
+  </g>
+  <circle cx="22" cy="22" r="12" fill="var(--bad)"/><text x="22" y="27" text-anchor="middle" font-size="14" font-weight="700" fill="var(--panel)">&#10007;</text><text x="41" y="27" font-size="14" font-weight="600">A &#183; Short</text>
+  <text x="88" y="218" text-anchor="middle" font-size="12">set down before the square</text>
+  <text x="88" y="236" text-anchor="middle" font-size="12" font-weight="600" fill="var(--bad)">reward 0.0</text>
+  </g>
+  <g transform="translate(435,8)">
+  <g transform="scale(1.3)">
+  <rect x="0" y="0" width="135" height="150" rx="8" class="box-bad"/>
+  <line x1="6" y1="120" x2="129" y2="120" class="tbl"/>
+  <line x1="61" y1="124" x2="75" y2="124" class="startmark"/>
+  <line x1="85" y1="122" x2="111" y2="122" class="target"/>
+  <rect x="15" y="104" width="20" height="16" rx="2" class="base"/>
+  <polyline points="25,104 59,75 104,70" class="arm"/>
+  <line x1="104" y1="70" x2="104" y2="78" class="arm-j"/>
+  <line x1="100" y1="78" x2="94" y2="96" class="arm-j"/>
+  <line x1="108" y1="78" x2="114" y2="96" class="arm-j"/>
+  <circle cx="25" cy="104" r="4" class="joint"/>
+  <circle cx="59" cy="75" r="4" class="joint"/>
+  <rect x="115" y="108" width="12" height="12" rx="2" class="cube"/>
+  <rect x="8" y="34" width="56" height="18" rx="9" fill="var(--muted)"/><text x="36" y="47" text-anchor="middle" font-size="10" font-weight="700" fill="var(--panel)">HOLD 2 s</text>
+  </g>
+  <circle cx="22" cy="22" r="12" fill="var(--bad)"/><text x="22" y="27" text-anchor="middle" font-size="14" font-weight="700" fill="var(--panel)">&#10007;</text><text x="41" y="27" font-size="14" font-weight="600">B &#183; Overshoot</text>
+  <text x="88" y="218" text-anchor="middle" font-size="12">dropped past the square</text>
+  <text x="88" y="236" text-anchor="middle" font-size="12" font-weight="600" fill="var(--bad)">reward 0.0</text>
+  </g>
+  <g transform="translate(645,8)">
+  <g transform="scale(1.3)">
+  <rect x="0" y="0" width="135" height="150" rx="8" class="box-bad"/>
+  <line x1="6" y1="120" x2="129" y2="120" class="tbl"/>
+  <line x1="61" y1="124" x2="75" y2="124" class="startmark"/>
+  <line x1="85" y1="122" x2="111" y2="122" class="target"/>
+  <rect x="15" y="104" width="20" height="16" rx="2" class="base"/>
+  <polyline points="25,104 57,72 98,54" class="arm"/>
+  <line x1="98" y1="54" x2="98" y2="62" class="arm-j"/>
+  <line x1="94" y1="62" x2="88" y2="80" class="arm-j"/>
+  <line x1="102" y1="62" x2="108" y2="80" class="arm-j"/>
+  <circle cx="25" cy="104" r="4" class="joint"/>
+  <circle cx="57" cy="72" r="4" class="joint"/>
+  <rect x="62" y="108" width="12" height="12" rx="2" class="cube"/>
+  <rect x="8" y="34" width="56" height="18" rx="9" fill="var(--muted)"/><text x="36" y="47" text-anchor="middle" font-size="10" font-weight="700" fill="var(--panel)">HOLD 2 s</text>
+  </g>
+  <circle cx="22" cy="22" r="12" fill="var(--bad)"/><text x="22" y="27" text-anchor="middle" font-size="14" font-weight="700" fill="var(--panel)">&#10007;</text><text x="41" y="27" font-size="14" font-weight="600">C &#183; Missed grasp</text>
+  <text x="88" y="218" text-anchor="middle" font-size="12">never lifted, still at start</text>
+  <text x="88" y="236" text-anchor="middle" font-size="12" font-weight="600" fill="var(--bad)">reward 0.0</text>
+  </g>
+</svg>
+</div>
+<figcaption>Figure 6. How episodes end. All four finish with the gripper open, the arm raised and a 2-second hold before Done. Only the cube's position decides the reward.</figcaption>
+</figure>
+
+<div class="table-wrap"><table>
+  <tr><th>Type</th><th>How to perform it</th><th>How it ends</th></tr>
+  <tr><td><b>A · Short</b></td><td>Do steps 1–4 normally, but set the cube down <b>3–5 cm before</b> the square.</td><td rowspan="3">Steps 5–6 as usual: open the gripper, raise it, hold for 2 s, press <b>Done</b>. Then write the episode on the log sheet.</td></tr>
+  <tr><td><b>B · Overshoot</b></td><td>Carry the cube <b>past</b> the square and set it down 3–5 cm beyond it.</td></tr>
+  <tr><td><b>C · Missed grasp</b></td><td>Lower the gripper 1–2 cm to the side of the cube and close it on nothing. Leave the cube where it is and do the rest of the motion as if you were holding it: carry to the square, open, raise.</td></tr>
+</table></div>
+
+<ul class="check">
+  <li>Make every failure obvious: the cube is <b>completely</b> outside the tape, never on the line.</li>
+  <li>Don't hesitate or jerk the arm. Move as smoothly as in a success episode.</li>
+  <li>Follow the plan below, so the failures are spread through the whole session.</li>
+</ul>
+
+<p><b>Failure plan.</b> Make episodes 4, 10, 16, 22, 28, 34, 40, 46, 52 and 58 (as numbered on screen) the failures, and do every other episode as a success:</p>
+<div class="table-wrap"><table>
+  <tr><th>On screen</th><td>4</td><td>10</td><td>16</td><td>22</td><td>28</td><td>34</td><td>40</td><td>46</td><td>52</td><td>58</td></tr>
+  <tr><th>Type</th><td>A</td><td>B</td><td>C</td><td>A</td><td>B</td><td>C</td><td>A</td><td>B</td><td>C</td><td>A</td></tr>
+  <tr><th>For the script</th><td>3</td><td>9</td><td>15</td><td>21</td><td>27</td><td>33</td><td>39</td><td>45</td><td>51</td><td>57</td></tr>
+</table></div>
+
+<div class="note warn"><b>Episode numbers start at 1 on screen and at 0 in the data</b>The recording screen shows “Episode 1 / 60” for the first episode, but the dataset calls it episode <code>0</code>. Always write down the number on screen, then <b>subtract 1</b> for the script. Re-record keeps the same number, so the plan stays correct even if you re-record.</div>
+
+<h3>5.5 When something goes wrong</h3>
+<div class="table-wrap"><table>
+  <tr><th>Situation</th><th>What to do</th></tr>
+  <tr><td>An accidental mistake <b>during recording</b>: fumbled grasp, cube knocked over, jerky movement, a hand in view</td><td>Press <b>Re-record</b> (<kbd>Del</kbd>) straight away. Reset, then record the same episode number again.</td></tr>
+  <tr><td>A <b>planned failure</b> accidentally ends as a success (for example, the cube slides into the square)</td><td>Press <b>Re-record</b> (<kbd>Del</kbd>) and do the failure again.</td></tr>
+  <tr><td>The timer passes about 17 s and you are not holding the finish yet</td><td>Press <b>Re-record</b> (<kbd>Del</kbd>).</td></tr>
+  <tr><td>You notice a problem only <b>after</b> pressing Done, or the 20 s ran out</td><td>Re-record is no longer possible. Write the on-screen number on the log sheet as <b>discard</b>, and untick that episode when you finish (5.7).</td></tr>
+  <tr><td>The cube rolled away during Reset and you need more time</td><td>Press <b>Pause</b> (<kbd>Enter</kbd>), fix the scene, then press <kbd>Enter</kbd> again to resume.</td></tr>
+</table></div>
+
+<h3>5.6 Log sheet</h3>
+<p>Print this table or copy it, and keep it next to the robot. Tick each planned failure when it is done; add any discarded episodes in the empty rows.</p>
+<div class="table-wrap"><table class="log-sheet">
+  <tr><th>On screen (“Episode N”)</th><th>For the script (N − 1)</th><th>Kind</th><th>Done ☐ / what happened</th></tr>
+  <tr><td>4</td><td>3</td><td>failure A</td><td></td></tr>
+  <tr><td>10</td><td>9</td><td>failure B</td><td></td></tr>
+  <tr><td>16</td><td>15</td><td>failure C</td><td></td></tr>
+  <tr><td>22</td><td>21</td><td>failure A</td><td></td></tr>
+  <tr><td>28</td><td>27</td><td>failure B</td><td></td></tr>
+  <tr><td>34</td><td>33</td><td>failure C</td><td></td></tr>
+  <tr><td>40</td><td>39</td><td>failure A</td><td></td></tr>
+  <tr><td>46</td><td>45</td><td>failure B</td><td></td></tr>
+  <tr><td>52</td><td>51</td><td>failure C</td><td></td></tr>
+  <tr><td>58</td><td>57</td><td>failure A</td><td></td></tr>
+  <tr><td></td><td></td><td>discard</td><td></td></tr>
+  <tr><td></td><td></td><td>discard</td><td></td></tr>
+  <tr><td></td><td></td><td>discard</td><td></td></tr>
+</table></div>
+<p>Only the <b>failure</b> rows go into <code>--failed-episodes</code> in step 6. Discards are removed in 5.7 and never listed.</p>
+
+<h3>5.7 Finish</h3>
+<p>After the last episode, press <b>Finish session</b>, review the episodes, untick every <b>discard</b> from the log sheet, and finalize.</p>
+<div class="note warn"><b>Removing an episode renumbers the ones after it</b>For each episode you untick, subtract 1 from every failure number <b>after</b> it on the log sheet. Example: if you untick episode 30 (on screen), the failure planned as 34 on screen is now <code>32</code> for the script instead of <code>33</code>, and every later failure moves down by one in the same way.</div>
+
+<div class="note ok"><b>Checkpoint</b>The dataset <code>&lt;your_hf_user&gt;/tdmpc_pick_raw</code> appears in My library with about 60 episodes, and your log sheet lists the failure numbers for the script.</div>
+
+<!-- ============================================================ -->
+<h2 id="convert"><span class="num">6</span>Convert the recording for TD-MPC</h2>
+
+<p>The script <code>updatewin\lab_TDMPC_prepare.py</code> reads the recording and writes a <b>new</b> dataset. The recording itself is never changed.</p>
+
+<figure>
+<div class="fig-scroll">
+<svg viewBox="0 0 860 230" role="img" aria-label="Image conversion: a 640 by 480 frame is center-cropped to 480 by 480 and resized to 84 by 84">
+  <defs>
+    <marker id="ah4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" class="arrowhead"/>
+    </marker>
+  </defs>
+  <rect x="20" y="30" width="256" height="192" fill="var(--crop)" opacity=".16" stroke="var(--line)"/>
+  <rect x="52" y="30" width="192" height="192" fill="none" stroke="var(--zone)" stroke-width="2.5" stroke-dasharray="7 4"/>
+  <text x="148" y="20" text-anchor="middle" font-size="13" font-weight="600">Recorded · 640 × 480</text>
+  <text x="148" y="130" text-anchor="middle" font-size="12" class="muted">centre square</text>
+
+  <line x1="290" y1="126" x2="360" y2="126" class="arrow" marker-end="url(#ah4)"/>
+  <text x="325" y="114" text-anchor="middle" font-size="11" class="muted">crop</text>
+
+  <rect x="372" y="30" width="192" height="192" fill="var(--zone)" opacity=".16" stroke="var(--zone)" stroke-width="2"/>
+  <text x="468" y="20" text-anchor="middle" font-size="13" font-weight="600">480 × 480</text>
+
+  <line x1="578" y1="126" x2="648" y2="126" class="arrow" marker-end="url(#ah4)"/>
+  <text x="613" y="114" text-anchor="middle" font-size="11" class="muted">resize</text>
+
+  <rect x="662" y="92" width="68" height="68" fill="var(--zone)" opacity=".3" stroke="var(--zone)" stroke-width="2"/>
+  <text x="696" y="80" text-anchor="middle" font-size="13" font-weight="600">84 × 84</text>
+  <text x="696" y="182" text-anchor="middle" font-size="11" class="muted">what TD-MPC sees</text>
+  <text x="790" y="120" font-size="11" class="muted">+ state</text>
+  <text x="790" y="136" font-size="11" class="muted">+ action</text>
+  <text x="790" y="152" font-size="11" class="muted">+ reward</text>
+</svg>
+</div>
+<figcaption>Figure 7. Per-frame conversion. Joint state and action are copied unchanged; the reward is added as in Figure 5.</figcaption>
+</figure>
+
+<h3>6.1 Trial run on 2 episodes</h3>
+<p>Close nothing; the Lab can stay open. In a second terminal, from the repository root, replace <code>&lt;your_hf_user&gt;</code> with the owner shown in step 5.1:</p>
+<pre><code>cd C:\makermodslab
+.venv\Scripts\python.exe updatewin\lab_TDMPC_prepare.py `
+  --src &lt;your_hf_user&gt;/tdmpc_pick_raw `
+  --dst &lt;your_hf_user&gt;/tdmpc_pick_trial `
+  --camera front --size 84 --success-frames 30 --max-episodes 2</code></pre>
+<p>Expected ending (frame counts differ):</p>
+<pre><code>Converting 2 episodes (1308 frames) of &lt;your_hf_user&gt;/tdmpc_pick_raw: camera 'front' -&gt; 84x84, ...
+  episode 0 saved
+  episode 1 saved
+Done: &lt;your_hf_user&gt;/tdmpc_pick_trial at C:\Users\&lt;you&gt;\.cache\huggingface\lerobot\&lt;your_hf_user&gt;\tdmpc_pick_trial
+  episodes: 2 (0 marked failed)
+  frames:   1308 (60 with reward 1.0)</code></pre>
+<p>A long <code>libtorchcodec</code> warning at the start is normal; lerobot falls back to the <code>pyav</code> decoder.</p>
+
+<h3>6.2 Full conversion</h3>
+<p>Put the “For the script” numbers of the <b>failure</b> rows of your log sheet (5.6) after <code>--failed-episodes</code>. With the plan from 5.4 and nothing removed, that is:</p>
+<pre><code>.venv\Scripts\python.exe updatewin\lab_TDMPC_prepare.py `
+  --src &lt;your_hf_user&gt;/tdmpc_pick_raw `
+  --dst &lt;your_hf_user&gt;/tdmpc_pick_84 `
+  --camera front --size 84 --success-frames 30 `
+  --failed-episodes 3 9 15 21 27 33 39 45 51 57</code></pre>
+
+<div class="table-wrap"><table>
+  <tr><th>Option</th><th>Meaning</th></tr>
+  <tr><td class="set">--src</td><td>The recording from step 5</td></tr>
+  <tr><td class="set">--dst</td><td>Name of the new TD-MPC dataset. It is saved to the lerobot cache, where the Lab lists it</td></tr>
+  <tr><td class="set">--camera front</td><td>The one camera to keep</td></tr>
+  <tr><td class="set">--size 84</td><td>Square image size in pixels</td></tr>
+  <tr><td class="set">--success-frames 30</td><td>How many final frames of a successful episode get reward 1.0 (30 = 1 s at 30 fps)</td></tr>
+  <tr><td class="set">--failed-episodes …</td><td>0-based numbers of the failed episodes; their reward stays 0.0</td></tr>
+  <tr><td class="set">--max-episodes N</td><td>Convert only the first N episodes (for trials)</td></tr>
+  <tr><td class="set">--overwrite</td><td>Replace an existing output dataset of the same name</td></tr>
+  <tr><td class="set">--push</td><td>Also upload the new dataset to the Hugging Face Hub</td></tr>
+</table></div>
+
+<p>Converting about 60 episodes takes a few minutes; most of the time is spent decoding the recorded video.</p>
+
+<div class="note ok"><b>Checkpoint</b>The script prints <code>Done</code>, the failed count matches your log sheet, and <code>tdmpc_pick_84</code> appears in My library.</div>
+
+<!-- ============================================================ -->
+<h2 id="train"><span class="num">7</span>Train TD-MPC in the Lab</h2>
+
+<p>Open <b>＋ New Policy</b> → <b>2 · Train</b> and set:</p>
+
+<div class="table-wrap"><table>
+  <tr><th>Section</th><th>Setting</th><th>Value</th><th>Note</th></tr>
+  <tr><td>Dataset</td><td>Dataset</td><td class="set">&lt;your_hf_user&gt;/tdmpc_pick_84</td><td><b>Not</b> the raw recording, which fails with “handles at most one image”</td></tr>
+  <tr><td>Policy</td><td>Policy</td><td class="set">TD-MPC</td><td></td></tr>
+  <tr><td>Compute</td><td>Run on</td><td class="set">This machine</td><td>The converted dataset exists only on this computer</td></tr>
+  <tr><td>Compute</td><td>Device</td><td class="set">Automatic</td><td>Uses the GPU</td></tr>
+  <tr><td>Essentials</td><td>Training steps</td><td class="set">20000</td><td>About 2 hours on an RTX 4080 Laptop GPU</td></tr>
+  <tr><td>Essentials</td><td>Batch size</td><td class="set">64</td><td>Uses well under 1 GB of GPU memory</td></tr>
+  <tr><td>Essentials</td><td>Run name</td><td class="set">tdmpc_pick_v1</td><td>Optional</td></tr>
+  <tr><td>Advanced</td><td>Number of workers</td><td class="set">4</td><td>Video decoding is the bottleneck; more workers help</td></tr>
+  <tr><td>Advanced</td><td>Log frequency</td><td class="set">100</td><td></td></tr>
+  <tr><td>Advanced</td><td>Save frequency</td><td class="set">2000</td><td>10 checkpoints in total</td></tr>
+  <tr><td>Advanced</td><td>Optimizer / learning rate</td><td class="set">preset</td><td>Keep TD-MPC's preset: Adam, 3e-4</td></tr>
+</table></div>
+
+<p>Start the run. TD-MPC starts from random weights, so there is no base model to download and training begins within a minute.</p>
+
+<h3>Command-line alternative</h3>
+<p>The same run without the Lab's interface:</p>
+<pre><code>.venv\Scripts\python.exe -m lerobot.scripts.lerobot_train `
+  --dataset.repo_id=&lt;your_hf_user&gt;/tdmpc_pick_84 `
+  --policy.type=tdmpc --policy.device=cuda --policy.push_to_hub=false `
+  --steps=20000 --batch_size=64 --num_workers=4 `
+  --log_freq=100 --save_freq=2000 `
+  --output_dir=outputs\train\tdmpc_pick_v1</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="check"><span class="num">8</span>Check the result</h2>
+
+<p>In the run's <b>Training logs</b>, confirm these lines in order:</p>
+<ol class="steps">
+  <li><code>'device': 'cuda'</code>: training is on the GPU.</li>
+  <li><code>num_learnable_params=2743279 (3M)</code>: the TD-MPC model with one 84 × 84 camera and the SO-101's 6 joints.</li>
+  <li>Progress such as <code>Training: … 2.8step/s</code>, with the step counter moving in the Lab.</li>
+  <li>Every <code>Log frequency</code> steps, a metrics line. The values to watch:</li>
+</ol>
+
+<div class="table-wrap"><table>
+  <tr><th>Metric</th><th>Meaning</th><th>Healthy trend</th></tr>
+  <tr><td class="set">loss</td><td>Overall training loss</td><td>Falls fast at first, then slowly</td></tr>
+  <tr><td class="set">reward_loss</td><td>How well the model predicts your reward</td><td>Falls; it stays near its start if the reward is almost all zeros (too few or too short success windows)</td></tr>
+  <tr><td class="set">consistency_loss</td><td>How well the world model predicts the next state</td><td>Falls and stays low</td></tr>
+  <tr><td class="set">Q, V</td><td>Predicted value of states</td><td>Settle between 0 and 1 / (1 − 0.9) = 10, the discounted reward range</td></tr>
+  <tr><td class="set">grdn</td><td>Gradient size</td><td>Comes down from its first values; sudden spikes mean unstable training</td></tr>
+</table></div>
+
+<p>For reference, a 60-step trial on 2 episodes of real SO-101 data on this lab's computer (RTX 4080 Laptop GPU, batch size 64) gave:</p>
+<pre><code>step:20  loss:2.534 grdn:14.563 ... smp/s:78  mem_gb:0.33 ... reward_loss:0.045 consistency_loss:0.043
+step:40  loss:0.641 grdn:3.428  ... smp/s:174 mem_gb:0.32 ... reward_loss:0.043 consistency_loss:0.008
+step:60  loss:0.482 grdn:2.252  ... smp/s:173 mem_gb:0.32 ... reward_loss:0.044 consistency_loss:0.006
+Training: 100%|██████████| 60/60 [00:31&lt;00:00,  2.83step/s]</code></pre>
+
+<p>Checkpoints are saved every <code>Save frequency</code> steps and listed on the run's page. Files are in <code>%USERPROFILE%\.cache\huggingface\lerobot\outputs\train\&lt;run&gt;\run\checkpoints\</code>.</p>
+
+<div class="note ok"><b>Checkpoint</b>The run reaches <code>state: done</code> with 10 checkpoints, and the losses fell over the run.</div>
+
+<!-- ============================================================ -->
+<h2 id="trouble"><span class="num">9</span>Troubleshooting</h2>
+
+<div class="table-wrap"><table>
+  <tr><th>Message or symptom</th><th>Cause</th><th>Fix</th></tr>
+  <tr><td><code>TDMPCConfig handles at most one image</code></td><td>Training on the raw recording</td><td>Train on the converted <code>tdmpc_pick_84</code> (step 6)</td></tr>
+  <tr><td><code>Only square images are handled now</code></td><td>Same as above</td><td>Same as above</td></tr>
+  <tr><td><code>KeyError: 'next.reward'</code></td><td>Dataset has no reward</td><td>Same as above</td></tr>
+  <tr><td><code>Camera 'front' is not in …</code> (script)</td><td>The camera has another name</td><td>Use the name the script lists, e.g. <code>--camera top</code></td></tr>
+  <tr><td><code>--failed-episodes not in the converted range</code></td><td>A number is too high, or you forgot to subtract 1</td><td>Check the log sheet; the first episode is 0</td></tr>
+  <tr><td><code>… already exists. Pick another --dst or pass --overwrite</code></td><td>An earlier conversion used that name</td><td>Add <code>--overwrite</code> or choose a new <code>--dst</code></td></tr>
+  <tr><td><code>OSError: [WinError 1314] A required privilege is not held</code></td><td>Checkpoint link needs Developer Mode or Administrator</td><td>Step 2.3, then restart the Lab</td></tr>
+  <tr><td><code>Repo id must use alphanumeric chars … 'lerobot\…'</code></td><td>Windows update not applied, or the Lab not restarted after applying it</td><td>Step 2.1, then restart the Lab</td></tr>
+  <tr><td>Log shows <code>'device': 'cpu'</code>; step counter stuck at 0</td><td>CPU-only PyTorch</td><td>Step 2.2. A later <code>uv sync</code> can bring the CPU build back</td></tr>
+  <tr><td>Camera start fails: <code>failed to set capture_…</code></td><td>The camera refused the resolution</td><td>Use 640 × 480 (step 4)</td></tr>
+  <tr><td><code>reward_loss</code> does not fall</td><td>Too little reward signal</td><td>Hold the success pose longer and raise <code>--success-frames</code> to 45–60; check the failed list</td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="limits"><span class="num">10</span>Limitations</h2>
+
+<div class="note warn"><b>Deploying this policy from the Lab does not work yet</b>The policy expects one 84 × 84 image, but the robot's camera delivers 640 × 480. lerobot's rollout only resizes images in its HIL pipeline, and MakerMods Lab has no crop-and-resize step for a running policy. Running the policy on the arm needs a crop-and-resize step added to the rollout, which is not part of this lab.</div>
+
+<ul>
+  <li><b>Offline TD-MPC learns from what you recorded.</b> lerobot's TD-MPC was designed for simulators that give a reward at every step and let the policy explore. With about 60 human demonstrations and an end-of-episode reward, expect a weaker policy than ACT trained on the same recording.</li>
+  <li><b>The reward is only as good as your endings.</b> An episode that “succeeds” without holding the finished pose teaches the wrong thing.</li>
+  <li><b>84 × 84 loses detail.</b> Small objects and fine gripper positions may be hard to see. <code>--size 96</code> or <code>128</code> are possible, but training is slower.</li>
+  <li><b>The same recording also trains ACT or SmolVLA.</b> Train them on <code>tdmpc_pick_raw</code> (all cameras, no conversion) to compare, and to get a policy the Lab can deploy today.</li>
+</ul>
+
+<h3>Files used in this lab</h3>
+<div class="table-wrap"><table>
+  <tr><th>File</th><th>Purpose</th></tr>
+  <tr><td class="set">updatewin\lab_TDMPC.html</td><td>This guide</td></tr>
+  <tr><td class="set">updatewin\lab_TDMPC_prepare.py</td><td>Conversion script (step 6)</td></tr>
+  <tr><td class="set">updatewin\README.md</td><td>The Windows training update (step 2)</td></tr>
+  <tr><td class="set">updatewin\windows-training-fix.patch</td><td>The code change applied in step 2.1</td></tr>
+</table></div>
+
+</div>
+</body>
+</html>
